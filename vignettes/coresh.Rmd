@@ -1,0 +1,139 @@
+---
+title: "CoReSh compendium search and derived gene sets"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CoReSh compendium search and derived gene sets}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(bulkiRNA)
+```
+
+This guide remains a vignette because `browseVignettes("bulkiRNA")` is where a
+user looks for the order of operations. Its CoReSh chunks are intentionally not
+evaluated during package builds. A search needs the roughly 20 GB CoReSh chunk
+tree, the optional `qs2` reader, and organism annotation packages. None is
+bundled, and `qs2` is absent from the current development image. No output is
+fabricated here.
+
+The shared reference tier is expected at
+`$REFCACHE_ROOT/coresh/current/preprocessed_chunks/{hsa,mmu}`. The resolved
+snapshot tag is attached to results as provenance, so a moving `current`
+symlink cannot change bytes silently.
+
+## 1.x: preflight and define queries
+
+CoReSh queries are named integer vectors of Entrez IDs, with at least three
+unique IDs each. Keep the exact query definitions in project configuration:
+database provenance records their names and sizes, not a copy of every ID.
+
+```{r preflight, eval=FALSE}
+Sys.setenv(REFCACHE_ROOT = "/path/to/refcache")
+
+coresh_validate(species = "human")
+
+queries <- list(
+  iron_uptake = c(7037L, 4891L, 55240L),
+  heme = c(3145L, 3146L, 2035L, 2235L)
+)
+```
+
+`coresh_validate()` reports all missing prerequisites in one pass. Install
+`qs2`, `BiocParallel`, and `org.Hs.eg.db` before continuing; the upstream
+`coresh` package itself is not required because its published 0.1.0 release
+contains no callable R functions.
+
+## 2.x: search, inspect convergence, and build sets
+
+Each dataset is identified by the `(gse, gpl)` pair. A GSE accession alone is
+not unique in the compendium, so keep both columns through every join.
+
+```{r search, eval=FALSE}
+hits <- coresh_search(
+  queries,
+  species = "human",
+  n_cores = 4L,
+  pvalues = TRUE,
+  sample_size = 21L,
+  seed = 1L
+)
+
+convergent <- coresh_convergence(
+  hits,
+  top_n = 10L,
+  min_queries = 2L
+)
+convergent
+```
+
+With `pvalues = TRUE`, the GESECA p-value is for ranking across the compendium;
+it is not a family of independent tests and must not be sent through
+`p.adjust()`. `log2err` reports estimator uncertainty, including `Inf` when an
+extreme result lies beyond reliable resolution.
+
+The provider below performs the standard composition: search the compendium,
+retain top datasets, extract their strongest gene loadings, map them to
+symbols, and remove highly redundant sets. It returns the same `gs_db` contract
+as every other provider.
+
+```{r provider, eval=FALSE}
+coresh_db <- gsdb_coresh(
+  queries,
+  species = "human",
+  top_hits = 5L,
+  top_n = 50L,
+  min_size = 15L,
+  max_size = 500L,
+  jaccard_threshold = 0.8,
+  n_cores = 4L,
+  seed = 1L
+)
+
+gsdb_info(coresh_db)$provenance
+```
+
+The seed default of 1 is deliberate: it matches the upstream CoReSh
+implementation. `bulkirna_stochastic()` records both the seed argument and
+what is random.
+
+```{r stochastic}
+subset(
+  bulkirna_stochastic(quiet = TRUE),
+  name %in% c("coresh_search", "gsdb_coresh")
+)
+```
+
+## 3.x: consume the provider without a special renderer
+
+Once built, CoReSh-derived sets bend no downstream API. A moderated-t rank
+vector enters `gs_test()` and the ordinary result renderer consumes the
+result. The calls remain unevaluated here because constructing `coresh_db`
+requires the external chunk tree.
+
+```{r consume, eval=FALSE}
+de_table <- utils::read.csv(
+  "03_results/demo/tables/1.6_de_treated_vs_control.csv",
+  row.names = 1,
+  check.names = FALSE
+)
+ranks <- gs_ranks(de_table, metric = "t", genes = "Symbol")
+
+res <- gs_test(
+  ranks,
+  coresh_db,
+  contrast = "treated_vs_control",
+  min_size = 15L,
+  max_size = 500L,
+  seed = 123L
+)
+
+p <- gs_plot_dot(res, top_n = 15L, sort_by = "padj")
+gs_save(p, "03_results/demo/plots/GSEA/2.1_coresh_derived")
+```
+
+The result is still a tibble, and `contrast` is still the join key. The
+provider owns access to gene sets; compute owns enrichment; the renderer owns
+presentation.

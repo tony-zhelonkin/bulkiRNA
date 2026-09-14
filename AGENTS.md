@@ -3,223 +3,151 @@
 > Single source of truth for agent/contributor guidance. `CLAUDE.md` and `GEMINI.md`
 > intentionally contain only `@AGENTS.md` so every assistant reads the same instructions.
 
-## Overview
+## What this is
 
-RNAseq-toolkit is a modular R **script library** (not a formal R package) for bulk
-RNA-seq differential expression (DE) and Gene Set Enrichment Analysis (GSEA). It wraps
-`limma`/`edgeR` for DE and `clusterProfiler`/`msigdbr`/`fgsea` for GSEA, providing
-consistent, publication-ready visualization functions. It is designed to be consumed as
-a git **submodule** inside larger analysis projects.
+**bulkiRNA is an installed R package** for bulk and pseudo-bulk RNA-seq differential
+expression and gene-set analysis. It replaced `RNAseq-toolkit`, a folder of scripts vendored
+as a git submodule and pulled in with `source()`.
 
-**Key philosophy:**
-- **Modular** — `source()` only what you need; there is no `library(RNAseqToolkit)`.
-- **Standardized** — consistent themes/colors across the parent project.
-- **Wrapper-based** — simplifies complex calls to `clusterProfiler`, `limma`, `ggplot2`.
+**There is no `source()` step. Use `library(bulkiRNA)`.** If you find an instruction to source
+a script out of `01_modules/RNAseq-toolkit/`, or a claim that there is no `library()` call, it
+is pre-package and wrong — including in a consumer project's own documentation.
 
-## Project Structure & Module Organization
+The package exists because 24 submodule copies drifted, nothing was tested, and no result
+could name the code that produced it. Every rule below traces to a defect that actually
+happened.
 
-```
-scripts/
-├── General/                    # Core utilities
-│   ├── annotate_genes.R        # Ensembl → Symbol/ENTREZID annotation
-│   ├── dge_helpers.R           # DGEList construction (build_dge)
-│   └── io_helpers.R            # File I/O utilities
-├── DE/                         # Differential expression visuals
-│   ├── plot_standard_volcano.R # Main volcano plot function
-│   ├── volcano_helpers.R       # Shared volcano utilities
-│   ├── plotPCA.R               # 2D PCA from DGEList
-│   └── plotPCA3d.R             # Interactive 3D PCA (plotly)
-├── GSEA/
-│   ├── GSEA_processing/        # Core GSEA analysis
-│   │   ├── run_gsea.R          # Single-database GSEA (clusterProfiler wrapper)
-│   │   ├── run_gsea_analysis.R # Multi-database pipeline with auto-plotting
-│   │   ├── run_pooled_gsea.R   # Cross-contrast GSEA aggregation
-│   │   ├── normalize_gsea.R    # Convert gseaResult → standard tibble
-│   │   ├── get_pathway_genes.R # Extract leading edge genes
-│   │   ├── calculate_pathway_scores.R
-│   │   ├── load_reference_db.R # Load bundled reference databases
-│   │   └── build_reference_databases.R # Rebuild processed RDS from raw
-│   ├── GSEA_plotting/          # R visualization functions
-│   │   ├── gsea_dotplot.R      # Standard dotplot
-│   │   ├── gsea_dotplot_facet.R # Up/Down faceted dotplot
-│   │   ├── gsea_barplot.R      # NES barplot
-│   │   ├── gsea_running_sum_plot.R # Running sum enrichment plot
-│   │   ├── gsea_heatmap.R      # Pathway × sample heatmaps
-│   │   └── format_pathway_names.R # Clean MSigDB pathway names
-│   └── GSEA_plotting_python/   # Python dotplot renderer
-├── custom_minimal_theme.R      # Shared ggplot2 theme
-└── utils_plotting.R / famd_plotting_rnaseq.R # Shared styling helpers
+## Before you write code
 
-data/
-└── references/                 # Bundled reference databases for GSEA
-    ├── METADATA.yaml           # Database registry
-    ├── mitocarta3.0/           # MitoCarta + MitoPathways (raw + processed)
-    ├── mitoxplorer3.0/         # mitoXplorer (raw + processed)
-    ├── mitochondria_unified/   # Merged mito databases (processed only)
-    └── transportdb/            # TransportDB 2.0 (raw + processed)
+1. **Read [CONVENTIONS.md](CONVENTIONS.md)** — the code contract: naming, argument validation,
+   error-message style, roxygen expectations.
+2. **Read the plan of record.** It lives in the memory layer, a sibling repo — see
+   [docs/MEMORY.md](docs/MEMORY.md). `bulkiRNA-memory/plans/HANDOFF.md` is the entry point: what
+   is in flight, what is parked, and why.
+3. **Do not re-derive a convention that is already recorded.**
+   `bulkiRNA-memory/plans/2026-08-13-analysis-api-roadmap/01_REFERENCE_PROJECTS.md`
+   names the canonical previous implementation of each analysis, with paths, parameter choices
+   and the reasoning behind them. **Read it instead of asking where prior work lives.**
 
-examples/example_analysis.R     # Runnable reference for sourcing + running analyses
-tests/                          # testthat volcano tests + visual-inspection PDFs
-README.md / MIGRATION.md        # Overview/usage and upgrade notes
-```
+## Running R
 
-## Architecture & Key Patterns
-
-**1. GSEA Normalize-Then-Visualize**
-```r
-source("scripts/GSEA/GSEA_processing/normalize_gsea.R")
-df <- normalize_gsea_results(gsea_obj, database = "Hallmark", contrast = "A_vs_B")
-# Returns tibble with: pathway_id, pathway_name, NES, padj, direction, etc.
-```
-
-**2. Pipeline functions auto-source dependencies**
-`run_gsea_analysis()` and `run_pooled_gsea()` source their helpers automatically. Pass
-`helper_root` if sourcing from a non-standard location.
-
-**3. Decision-by-FDR volcano plots**
-The volcano uses `-log10(P.Value)` on the y-axis but decides significance by `adj.P.Val`.
-The dashed line is placed at the raw p-value corresponding to the FDR boundary. Supply
-`fixed_p_boundary` to pin the line to a known p-value (e.g. a pre-filtered dataset)
-instead of deriving it from the significant gene set.
-
-**4. GSEA dotplot "show all, highlight significant"**
-`gsea_dotplot()` separates **selection** from **highlighting**:
-- `filterBy` + `showCategory` → which pathways are displayed (top N by NES, p.adjust, …)
-- `padj_cutoff` + `highlight_threshold` → which pathways get a black outline (FDR < threshold)
-
-```r
-gsea_dotplot(
-  gsea_obj,
-  filterBy = "NES",       # sort by |NES| magnitude
-  showCategory = 20,      # show top 20 pathways
-  padj_cutoff = 0.10,     # black outline for FDR < 0.10
-  highlight_sig = TRUE,
-  use_gradient = TRUE
-)
-```
-
-## Golden Path: Usage in a Parent Project
-
-Functions are `source()`'d relative to the project root (adjust the submodule path).
-
-```r
-# Differential expression
-source("01_modules/RNAseq-toolkit/scripts/DE/plot_standard_volcano.R")
-source("01_modules/RNAseq-toolkit/scripts/custom_minimal_theme.R")
-volcano <- create_standard_volcano(
-  de_results = topTable_results,  # needs logFC, P.Value, adj.P.Val, gene symbols
-  decision_by = "fdr",
-  p_cutoff = 0.05,
-  fc_cutoff = 1                   # log2 scale
-)
-ggsave("03_results/plots/volcano_AvsB.pdf", volcano, width = 8, height = 6)
-
-# GSEA
-source("01_modules/RNAseq-toolkit/scripts/GSEA/GSEA_processing/run_gsea.R")
-source("01_modules/RNAseq-toolkit/scripts/GSEA/GSEA_plotting/gsea_dotplot.R")
-gsea_res <- run_gsea(
-  DE_results = de_table,          # rownames = gene symbols, col = rank_metric
-  rank_metric = "t",
-  species = "Mus musculus",
-  category = "H"                  # Hallmark
-)
-dotplot <- gsea_dotplot(gsea_res, showCategory = 20, padj_cutoff = 0.05)
-```
-
-## Build, Test, and Development Commands
-
-- Run volcano test suite (auto + visual): `Rscript tests/test_volcano_plots.R`
-  (writes PDFs to `tests/output/` if enabled).
-- Other suites: `Rscript tests/test_gsea_dotplot.R`, `Rscript tests/test_pathway_formatting.R`.
-- Quick example workflow: `Rscript examples/example_analysis.R` (run from repo root;
-  adjust input paths inside the script).
-- Ad-hoc sourcing: `source("scripts/GSEA/GSEA_processing/run_gsea_analysis.R")`, then call
-  helpers per README examples.
-
-## Key Functions
-
-| Function | Purpose | Input → Output |
-|----------|---------|----------------|
-| `run_gsea()` | Single GSEA analysis | DE table → gseaResult |
-| `run_gsea_analysis()` | Multi-database GSEA + plots | DE table → list of gseaResult |
-| `normalize_gsea_results()` | Standardize GSEA output | gseaResult → tibble |
-| `create_standard_volcano()` | DE volcano plot | DE table → ggplot |
-| `gsea_dotplot()` | GSEA dotplot | gseaResult → ggplot |
-| `build_dge()` | Construct DGEList | count matrix + metadata → DGEList |
-| `load_reference_db()` | Load bundled reference database | database name → T2G/T2N list |
-| `list_reference_dbs()` | List available reference databases | → data frame |
-| `download_gatom_references()` | Download GATOM network files | dest_dir → file paths |
-
-## Coding Style & Naming Conventions
-
-- Language: R. Indent 2 spaces; no tabs. Prefer tidyverse style (pipes / `|>`),
-  consistent spacing around `=` in args.
-- Functions/objects: `snake_case`; exported helpers start lowercase (`run_gsea`,
-  `create_volcano_plot`). File names mirror the main function.
-- Keep plotting side effects optional: return plot objects; gate file I/O behind explicit
-  flags/paths.
-- Add lightweight comments for non-obvious wrangling/plotting; keep docstrings minimal but precise.
-
-## Testing Guidelines
-
-- Primary coverage: volcano alignment and edge cases via `testthat` in
-  `tests/test_volcano_plots.R`. Expect PASS and PDFs whose dashed thresholds align with
-  color boundaries.
-- Treat plotting changes as **visual regression**: inspect PDFs in `tests/output/`.
-- When adding DE/GSEA helpers, add a minimal reproducible fixture to `tests/` and extend
-  the volcano test script or create a sibling `test_*.R`.
-- Clean up large artifacts; keep generated outputs in `tests/output/` (or a user-specified
-  directory), not versioned.
-
-## Required R Packages
-
-- **Core:** `limma`, `edgeR`, `dplyr`, `tibble`, `ggplot2`
-- **GSEA:** `clusterProfiler`, `msigdbr`, `enrichplot`, `fgsea`
-- **Annotation:** `org.Mm.eg.db` (mouse), `org.Hs.eg.db` (human), `biomaRt`
-- **Visualization:** `ggrepel`, `pheatmap`, `plotly`, `scales`
-
-Do not assume libraries are pre-loaded — load them explicitly in scripts or ensure the
-parent environment provides them. Document any new package imports.
-
-## Git Branching, Versioning & Submodule Pinning
-
-The toolkit uses a **two-branch model**:
-- **`main`** — stable, released state.
-- **`dev`** — integration branch for in-progress work.
-
-Releases are marked with annotated **tags** (semver, e.g. `v0.2.0`). Project-specific
-`dev-{project}` branches are **no longer used**; per-project work lands on `dev` and is
-released via a tag.
-
-**Pinning in a parent project:** parent repos consume the toolkit as a submodule pinned to
-a **tag** (recorded as the submodule's gitlink commit), independent of which branch the tag
-sits on. To bump a project to a new release:
+**There is no R on the host.** Everything runs in a throwaway container. Both `--user` and
+`HOME` are mandatory:
 
 ```bash
-cd path/to/RNAseq-toolkit        # the submodule
-git fetch --tags
-git checkout v0.2.0              # detached at the tag
-cd -                             # back to parent repo
-git add path/to/RNAseq-toolkit  # stage the new gitlink
-git commit -m "Bump RNAseq-toolkit to v0.2.0"
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/cache \
+  -v /data1/users/antonz/pipeline/.msigdb-cache:/cache \
+  -v "$PWD":/pkg -w /pkg scdock-r-dev:v0.5.13 <command>
 ```
 
-**Commits & PRs:** concise imperative subjects (`Add pooled GSEA cache`); rationale in the
-body when non-trivial. Group related changes; avoid formatting-only noise. PRs should
-describe intent, key changes, and test evidence (`Rscript tests/test_volcano_plots.R`
-output), note new dependencies, and attach representative PDFs/PNGs when plots change.
+Add `--network host` only when network access is genuinely needed. Scratch scripts go in
+`/tmp`, never in the repo.
 
-## Known Issues & Troubleshooting
+## Gates — all of them, before claiming anything works
 
-- **ggplot2 4.0+:** use `color = "transparent"` instead of `color = NA` for shape-21 points
-  (`NA` drops points as "missing values").
-- **"Function not found":** you likely missed sourcing the specific script — there is no
-  `library(RNAseqToolkit)`.
-- **"Pathway name mismatch":** check `species` ("Mus musculus" vs "Homo sapiens") in `run_gsea`.
-- **Theme errors:** source `custom_minimal_theme.R` before plotting if using toolkit defaults.
+```r
+devtools::document()                    # NAMESPACE and man/ are generated
+devtools::test()                        # 0 failures
+```
+```bash
+Rscript tests/golden/verify_golden.R    # must exit 0
+```
 
-## Security & Configuration Tips
+Plus `rcmdcheck::rcmdcheck()` for anything touching the package surface. It is currently
+**0 errors, 0 warnings, 0 notes** and must stay there. It catches what `devtools::test()`
+cannot: `tests/fixtures/` is `.Rbuildignore`d, so a fixture-backed test must *skip* in the
+built package rather than error. It also catches stale `man/` and a semantic conflict between
+two branches that each pass on their own — run it after every merge, not only after an edit.
 
-- Ensure R dependencies are installed in your library; add new imports explicitly and document them.
-- Prefer relative paths from repo root; avoid writing outside project directories by default.
-- Gate caching/output directories via parameters (`cache_dir`, `output_dir`) and create them if missing.
+**The two gates do not cover the same things, in both directions.** The enforcement tests that
+parse `R/` — the RNG-ownership test and the name audit — **skip under `R CMD check`**, because an
+installed package has no `.R` files. So a green check does not mean the invariants hold; only
+`devtools::test()` checks them. Both skips say so out loud. `qs2` is a declared `Suggests` and is
+absent from the image, so `R CMD check` needs a scratch library mounted at `R_LIBS`.
+
+## Off-limits
+
+- **`NAMESPACE` and `man/` are roxygen-generated.** Never hand-edit. Write `@export` /
+  `@keywords internal` and run `devtools::document()`.
+- **`tests/golden/` is read-only** unless deliberately re-capturing. Never run
+  `capture_golden.R` without `--cases=<name>`: a bare run rewrites all 20 baselines.
+- **`tests/fixtures/` is read-only.** Each fixture has a generating script beside it.
+- **The 24 signature-frozen exports may not change formals** — same names, order, defaults.
+  `bulkirna_api()` lists them. The freeze covers signatures, **not** behaviour: a corrected
+  result is not a breaking change, and `NEWS.md` records it.
+- **Consumer projects are read-only.** Mount them `:ro`. Never commit in one — several hold
+  live research data with uncommitted work.
+
+## The four architectural rules
+
+1. **Four layers, one job each.** `gsdb_*` providers → `gs_test()`/`gs_score()` compute →
+   `gs_result`/`gs_matrix` objects → `gs_plot_*` renderers. **Compute never plots. Renderers
+   never compute.**
+2. **Results are tibbles**, not S4. No `@result` slot; `dplyr` and `rbind()` work.
+3. **The boundary rule.** A table in and a table out is a package function. A result in and a
+   *decision* out stays a skill.
+4. **Guards assert, they do not merely fix.** A workaround reaching into another package's
+   internals must be paired with an independent check on the result. The `msigdbr` ortholog
+   cache taught this: the truncation was invisible in the returned object.
+
+## Two invariants, both with enforcement tests
+
+- **Only `R/rng.R` may mutate RNG state.** `set.seed()`, `RNGkind(args)` and writing
+  `.Random.seed` belong in `.with_pinned_seed()`. A bare `RNGkind()` is a read and is legal
+  anywhere. Reason: `BiocParallel::bplapply()` switches the generator to `L'Ecuyer-CMRG` inside
+  the task — even with `SerialParam()` — so seeding without pinning silently changes answers
+  under parallelism. `tests/testthat/test-stochastic.R` fails if a fourth mutation site appears.
+- **Every stochastic function is declared.** `bulkirna_stochastic()` names them, their seed
+  argument and default, and what is random in them. Declaring a sixth fails the suite until it
+  is classified as exercised there or covered elsewhere with a reason.
+
+**The seed defaults deliberately disagree** — CoReSh `1L`, GATOM `42`, fgsea `123L`. Each
+matches what already produced published numbers; `coresh_*` uses upstream's literal value.
+Unifying them would silently move results. They are documented deviations, not untidiness.
+
+## Writing tests for stochastic code
+
+- **Never assert a p-value or a random number.** Assert relations: same seed agrees, different
+  seeds differ, parent and `bplapply` worker agree, the caller's stream is untouched.
+- **Derive the list under test from the code**, never from a literal, or it goes stale on the
+  next addition.
+- **A tiny fixture proves nothing.** Saturated p-values compare equal across seeds, so the test
+  passes while asserting nothing. Use enough genes and sets to keep the estimator in the range
+  where the seed matters.
+- **Capture RNG state after building the fixture**, or the fixture's own `set.seed()` is
+  mistaken for the function under test disturbing its caller.
+- **A hand-built fixture only contains what its author imagined.** `NA` Entrez ids present in
+  0.7% of real CoReSh datasets passed the entire suite. Where a real-data fixture exists, use it.
+- **Watch for assertions that cannot fail**: a value compared against the function that produced
+  it, a bound satisfied by every number (`is.finite(x) || is.infinite(x)`), an `expect_*` on a
+  value constructed to satisfy it, or a comparison of two empty vectors.
+
+## Reporting and honesty
+
+- **A green run is not a passing gate.** A cached result, a skipped branch or an empty result
+  can all print success. Confirm the code ran: this project has shipped an "exit 0" that never
+  executed the migrated path, and a cached `NULL` that made a failure outlive its own fix.
+- **An empty result and a broken run must be distinguishable.** Count errors; stop outright when
+  everything failed rather than reporting a clean nothing.
+- **If a brief's premise is false, stop and report it.** Do not work around it. Agents on this
+  package have done that six times and were right every time.
+
+## Commits
+
+- Neutral or first-person, never third person. No "the owner's", no "the integrator's".
+- **Never write a linkable issue reference** (`owner/repo#123`, or a full issue URL) in a commit
+  message: GitHub cross-posts the whole body onto that project's tracker. Write `issue 123`.
+- No internal deliberation in commit bodies. State what changed and the evidence for it.
+- Do not rewrite published history without explicit consent.
+
+## Known traps
+
+- **ggplot2 4.0+:** use `color = "transparent"`, not `color = NA`, for shape-21 points; `NA`
+  drops them as missing values.
+- **`load_or_compute()`-style caches key on filename only.** Any cache whose input is another
+  stage's generated artifact can serve results computed against a superseded input. A class
+  change forces a cache rename.
+- **`msigdbr` keys its ortholog cache on species alone**, so a second collection in one session
+  is truncated to the intersection. `gsdb_msigdb()` guards this and asserts on the result.
+- **Species strings matter**: `"Mus musculus"` versus `"Homo sapiens"`, and `db_species` is a
+  separate argument from the target species.

@@ -4,3 +4,4 @@ __pycache__/
 *.pyo
 Rplots.pdf
 tests/output/
+.claude/worktrees/

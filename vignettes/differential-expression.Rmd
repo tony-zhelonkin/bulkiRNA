@@ -1,0 +1,132 @@
+---
+title: "Differential expression: counts to a contrast"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Differential expression: counts to a contrast}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(bulkiRNA)
+```
+
+This vignette evaluates a small limma-trend analysis end to end. The counts are
+synthetic and are generated in the document; they are not presented as a
+biological dataset. Twenty genes are made four-fold higher and twenty are made
+four-fold lower in the treated samples, so the fitted contrast has a known
+signal.
+
+The house pipeline separates `1.x` ingest and design, `2.x` compute, and `3.x`
+render. A contrast is more than a label in a real study: its design and caveats
+belong in project configuration. The string label is nevertheless the stable
+join key carried into downstream tables.
+
+## 1.x: construct and inspect a `DGEList`
+
+`build_dge()` checks that sample order matches the count matrix and computes
+TMM normalization factors. The `set.seed()` call is local to this vignette;
+the package's RNG-ownership rule applies to code under `R/`.
+
+```{r synthetic-counts}
+set.seed(61)
+n_genes <- 400L
+n_samples <- 8L
+gene_id <- paste0("Gene", seq_len(n_genes))
+sample_id <- paste0("Sample", seq_len(n_samples))
+group <- factor(rep(c("control", "treated"), each = n_samples / 2L))
+
+base_mean <- stats::rgamma(n_genes, shape = 3, rate = 0.06) + 10
+library_factor <- c(0.90, 1.05, 1.10, 0.95, 1.00, 0.92, 1.08, 1.04)
+fold_change <- matrix(1, nrow = n_genes, ncol = n_samples)
+up_genes <- gene_id[1:20]
+down_genes <- gene_id[21:40]
+fold_change[1:20, group == "treated"] <- 4
+fold_change[21:40, group == "treated"] <- 0.25
+
+mu <- outer(base_mean, library_factor) * fold_change
+counts <- matrix(
+  stats::rnbinom(length(mu), mu = as.vector(mu), size = 25),
+  nrow = n_genes,
+  dimnames = list(gene_id, sample_id)
+)
+samples <- data.frame(group = group, row.names = sample_id)
+genes <- data.frame(symbol = gene_id, row.names = gene_id)
+
+dge <- build_dge(counts, samples, genes)
+dge$samples[, c("group", "lib.size", "norm.factors")]
+```
+
+PCA is a renderer over the normalized count object. It does not fit the DE
+contrast.
+
+```{r pca, fig.width=6, fig.height=5}
+de_pca(dge, colour_by = "group", title = "Synthetic count structure")
+```
+
+## 2.x: fit the moderated contrast
+
+The rank metric used by the gene-set layer is the moderated t-statistic, not
+raw fold change. This example uses limma-trend on log-CPM, one of the two house
+DE inputs (the other is edgeR quasi-likelihood).
+
+```{r fit}
+design <- stats::model.matrix(~ 0 + group, data = dge$samples)
+colnames(design) <- levels(group)
+log_cpm <- edgeR::cpm(dge, log = TRUE, prior.count = 2)
+
+fit <- limma::lmFit(log_cpm, design)
+contrast_matrix <- limma::makeContrasts(
+  treated - control,
+  levels = design
+)
+fit <- limma::contrasts.fit(fit, contrast_matrix)
+fit <- limma::eBayes(fit, trend = TRUE)
+de <- limma::topTable(fit, coef = 1L, n = Inf, sort.by = "none")
+
+de[c(up_genes[1:3], down_genes[1:3]),
+   c("logFC", "t", "P.Value", "adj.P.Val")]
+```
+
+The fitted table is deliberately left long: one row per gene for this
+contrast. In a multi-contrast project, add the contrast string and stack the
+rows rather than creating a different schema for each comparison.
+
+```{r rank-and-check}
+ranks <- gs_ranks(de, metric = "t")
+head(ranks)
+
+planted <- data.frame(
+  gene = c(up_genes, down_genes),
+  expected = rep(c("up", "down"), each = 20L),
+  logFC = de[c(up_genes, down_genes), "logFC"],
+  row.names = NULL
+)
+aggregate(logFC ~ expected, planted, median)
+```
+
+## 3.x: render without changing the fit
+
+`de_volcano()` uses raw p-values for vertical resolution but FDR for the
+significance decision. The dashed p-value boundary therefore coincides with
+the set of FDR-significant genes rather than pretending that raw p = 0.05 is
+an FDR cutoff.
+
+```{r volcano, fig.width=7, fig.height=5}
+de_volcano(
+  de,
+  decision_by = "fdr",
+  p_cutoff = 0.05,
+  fc_cutoff = 1,
+  top_n = 4L,
+  highlight_gene = c(up_genes[1], down_genes[1]),
+  annotate_counts = TRUE,
+  title = "Treated vs control (synthetic counts)"
+)
+```
+
+In a project this naturally becomes `1.6_de.R` for the fit and
+`3.0_volcano_viz.R` for the renderer, with the DE table written to
+`03_results/<subset>/tables/`. The separation makes it possible to redraw a
+figure without refitting the contrast.

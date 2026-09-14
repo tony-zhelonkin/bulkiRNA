@@ -1,0 +1,58 @@
+Package: bulkiRNA
+Title: Bulk RNA-seq Differential Expression and Gene-Set Analysis
+Version: 1.2.0.9000
+Authors@R:
+    person("Anton", "Zhelonkin", email = "antonz@uchicago.edu", role = c("aut", "cre"))
+Description: A compact toolkit for bulk RNA-seq differential expression and
+    gene-set analysis. Gene-set databases are provided by a pluggable gsdb_*
+    provider layer; testing and scoring go through gs_test() and gs_score()
+    (fgsea, over-representation, and GSVA); results are carried in normalized
+    gs_result / gs_matrix objects that the gs_plot_* renderers consume. Compute
+    functions never plot and renderers never compute.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+VignetteBuilder: knitr
+Depends:
+    R (>= 4.2)
+Imports:
+    dplyr,
+    fgsea,
+    ggplot2,
+    ggrepel,
+    grDevices,
+    methods,
+    msigdbr,
+    patchwork,
+    rlang,
+    scales,
+    stats,
+    stringr,
+    tibble,
+    tools,
+    utils
+Suggests:
+    AnnotationDbi,
+    babelgene,
+    BiocParallel,
+    biomaRt,
+    colorspace,
+    edgeR,
+    gatom,
+    GSVA,
+    homologene,
+    igraph,
+    knitr,
+    limma,
+    mwcsr,
+    org.Hs.eg.db,
+    org.Mm.eg.db,
+    plotly,
+    qs2,
+    readxl,
+    rmarkdown,
+    testthat (>= 3.1.9),
+    withr,
+    yaml
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0

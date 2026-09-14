@@ -1,0 +1,167 @@
+---
+title: "Gene sets: provide, test, render"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Gene sets: provide, test, render}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(bulkiRNA)
+```
+
+The gene-set workflow has three boundaries: a provider returns a `gs_db`, a
+compute function returns a `gs_result`, and a renderer consumes that result.
+Compute never plots, and renderers never recompute a statistic. This separation
+is what lets a bundled database, a GMT file, and an inline signature enter the
+same analysis.
+
+The example below is fully evaluated without a network connection. The gene
+sets are real MitoPathways data shipped in `inst/extdata`; the ranked vector is
+synthetic and is labelled as such. A strong positive signal is deliberately
+planted in one real pathway so the result has structure worth interpreting.
+
+## 1.x: choose a provider
+
+`gsdb_load()` resolves installed data with `system.file()`, so this works from
+both a source checkout and an installed package.
+
+```{r bundled-provider}
+gsdb_list()[, c("database", "species")]
+
+db <- gsdb_load(
+  "mitopathways",
+  species = "Homo sapiens",
+  min_size = 15L,
+  max_size = 150L
+)
+db
+```
+
+Local GMT and GMX files enter through `gsdb_from_file()`. This small temporary
+GMT is constructed only to demonstrate the file boundary; unlike `db` above,
+it is not bundled reference data.
+
+```{r file-provider}
+gmt <- tempfile(fileext = ".gmt")
+writeLines(c(
+  "OXPHOS_DEMO\tOxidative phosphorylation demo\tNDUFA1\tNDUFA2\tSDHA",
+  "TRANSPORT_DEMO\tTransport demo\tSLC25A3\tSLC25A4\tSLC25A5"
+), gmt)
+
+file_db <- gsdb_from_file(
+  gmt,
+  database = "local_demo",
+  database_label = "Local demo",
+  species = "Homo sapiens"
+)
+file_db
+```
+
+For signatures already held in R, register the named list directly. Stable,
+snake-case database keys are important because `database` becomes a join and
+filter key in every result.
+
+```{r inline-provider}
+inline_db <- gsdb_register(
+  list(
+    OXPHOS_DEMO = c("NDUFA1", "NDUFA2", "SDHA"),
+    TRANSPORT_DEMO = c("SLC25A3", "SLC25A4", "SLC25A5")
+  ),
+  database = "inline_demo",
+  species = "Homo sapiens",
+  database_label = "Inline demo"
+)
+inline_db
+```
+
+MSigDB is also a provider, but it can populate an `msigdbr` cache over the
+network. Its call is therefore intentionally not evaluated in a vignette that
+must build offline.
+
+```{r msigdb-provider, eval=FALSE}
+hallmark <- gsdb_msigdb("Homo sapiens", collection = "H")
+```
+
+## 2.x: compute one long result table
+
+The next chunk creates the synthetic ranks. Genes from the selected real
+pathway receive a planted positive shift; the remaining mitochondrial and
+background genes follow the same null distribution.
+
+```{r planted-ranks}
+set.seed(19)
+target_id <- names(db)[which.max(lengths(db))]
+target_genes <- db[[target_id]]
+universe <- unique(c(
+  unlist(unclass(db), use.names = FALSE),
+  paste0("BACKGROUND_", seq_len(1200L))
+))
+
+ranks <- stats::setNames(stats::rnorm(length(universe)), universe)
+ranks[target_genes] <- ranks[target_genes] + 4
+ranks <- sort(ranks, decreasing = TRUE)
+
+res <- gs_test(
+  ranks,
+  db,
+  contrast = "planted_vs_null",
+  min_size = 15L,
+  max_size = 150L,
+  seed = 123L
+)
+
+res[res$pathway_id == target_id,
+    c("pathway_id", "contrast", "stat", "stat_type", "padj")]
+```
+
+`res` is a tibble with class `gs_result`, not an object with an `@result`
+slot. Ordinary table operations and `rbind()` therefore work. `contrast` is a
+string column and is the join key when several contrasts are stacked.
+
+The downstream master table has exactly 14 required columns. Supplying the
+database and tested universe makes the full-set membership reproducible.
+
+```{r master-table}
+master <- gs_to_master(res, db = db, universe = names(ranks))
+stopifnot(ncol(master) == 14L)
+master[master$pathway_id == target_id,
+       c("pathway_id", "contrast", "nes", "padj", "direction")]
+```
+
+## 3.x: render, then persist beside the source table
+
+The renderer reads the statistic type from the result, so the axis is labelled
+`NES` here and would be labelled differently for another method.
+
+```{r render, fig.width=7, fig.height=5}
+p <- gs_plot_dot(
+  res,
+  top_n = 10L,
+  sort_by = "padj",
+  title = "Planted enrichment in shipped MitoPathways sets"
+)
+p
+```
+
+In a project, compute and render stages share a number but remain separate.
+`gs_save()` enforces the house output rule by writing the figure and its tidy
+source table at the same stem:
+
+```{r save, eval=FALSE}
+gs_save(
+  p,
+  "03_results/demo/plots/GSEA/2.1_mitopathways",
+  width = 8,
+  height = 6
+)
+```
+
+Seed defaults are not cosmetic: each preserves previously published numbers.
+Use `bulkirna_stochastic()` to see which functions consume randomness and why.
+
+```{r stochastic-registry}
+bulkirna_stochastic(quiet = TRUE)
+```

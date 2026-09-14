@@ -1,149 +1,87 @@
-# RNAseq-toolkit Test Suite
+# `bulkiRNA` tests
 
-This directory contains comprehensive tests for visualization functions.
+Three independent layers. They fail for different reasons, which is the point --
+if you change one thing and two layers go red, the third tells you which.
 
-## Available Tests
+| Directory | What it is | Run it with |
+|---|---|---|
+| `testthat/` | Unit and contract tests for the package API | `devtools::test(".")` |
+| `golden/` | Behavioural baselines captured from the pre-package script library | `Rscript tests/golden/verify_golden.R` |
+| `fixtures/` | Shared synthetic and real-symbol inputs used by both | (not run directly) |
 
-| Test File | Function | Purpose |
-|-----------|----------|---------|
-| `test_volcano_plots.R` | `create_standard_volcano()` | Dashed line alignment with FDR boundaries |
-| `test_gsea_dotplot.R` | `gsea_dotplot()` | Show all pathways, highlight significant |
-| `test_pathway_formatting.R` | `format_pathway_name()` | Smart biological capitalization |
+`golden/` and `fixtures/` are integrator-owned. Do not modify a stored baseline
+to make a test pass -- see "Re-capturing a baseline" below.
 
-## Running All Tests
+## The golden gate
 
-```bash
-cd /path/to/RNAseq-toolkit
-Rscript tests/test_volcano_plots.R
-Rscript tests/test_gsea_dotplot.R
-Rscript tests/test_pathway_formatting.R
-```
+`golden/` holds 20 baselines recorded from the old `scripts/` library before it
+was deleted, each keyed to a frozen legacy function name. `verify_golden.R`
+calls those names through package internals, so it compares the old recorded
+behaviour against the retained implementations in `R/legacy-fixtures-gs.R` and
+`R/legacy-fixtures-plot.R`.
 
----
+That distinction is the whole value of the gate. Until it was migrated, the
+harness `source()`d the old scripts, so a green 20/20 proved only that the old
+code still worked -- it could not see the new code at all. Pointing it at the
+package found five real defects in one sitting, none of which `devtools::test()`
+or `R CMD check --as-cran` could detect.
 
-# GSEA Dotplot Tests
+**Known blind spots.** `ggplot_build(p)$data` carries only numeric layer data,
+so the baselines cannot see axis, legend, or facet label *text*, and a stored
+theme records element names but not their sizes. Two of the five defects lived
+exactly there. Assertions about labels and theme sizes belong in `testthat/`,
+not here.
 
-## Purpose
+### Re-capturing a baseline
 
-Tests the "show all, highlight significant" pattern where:
-- **All top N pathways** are displayed regardless of significance
-- **Only significant pathways** get black outline (FDR < threshold)
-- **Non-significant pathways** are visible but without outline
-
-## Test Cases
-
-1. **All pathways shown**: Verifies top N pathways display even if none significant
-2. **Outline logic**: Base layer has no outline; overlay only for FDR < threshold
-3. **Strict threshold**: Dots still appear with very strict FDR cutoff
-4. **NES_positive filter**: Only positive NES pathways shown
-5. **NES_negative filter**: Only negative NES pathways shown
-
-## Visual Output
-
-Generated in `tests/output/gsea_dotplot/`:
-- `test1_all_pathways.pdf` — Top 20 by |NES|
-- `test3_strict_threshold.pdf` — All dots visible, few/no outlines
-- `test4_positive_nes.pdf` — Upregulated only
-- `test5_negative_nes.pdf` — Downregulated only
-
-## Key Fix (2025-01)
-
-**Issue:** In ggplot2 4.0+, `color = NA` causes points to be removed as "missing values".
-
-**Fix:** Changed to `color = "transparent"` in base layer.
-
----
-
-# Volcano Plot Tests
-
-## Purpose
-
-The main issue being tested is **dashed line alignment with color boundaries** in FDR mode. The horizontal/vertical dashed line should align exactly with the boundary between colored (significant) and gray (non-significant) points.
-
-## Test Cases
-
-### Automated Tests
-
-The test suite includes these edge cases:
-
-1. **Typical data**: ~100 significant genes out of 1000
-2. **No significant genes**: All genes fail FDR threshold
-3. **All genes significant**: All genes pass FDR threshold
-4. **Very few significant**: Only 2-3 genes significant
-5. **Boundary genes**: Genes with adj.P.Val very close to cutoff
-6. **Raw p-value mode**: Using `decision_by = "p"` instead of FDR
-7. **Vertical volcano**: Same tests for vertical orientation
-
-### Visual Inspection Tests
-
-The script also generates plots for manual review in `tests/output/`:
-
-- `volcano_typical.pdf` - Standard case
-- `volcano_no_sig.pdf` - No significant genes
-- `volcano_few_sig.pdf` - Very few significant genes
-- `volcano_all_sig.pdf` - All genes significant
-- `volcano_boundary.pdf` - Genes near FDR boundary
-- `volcano_vertical.pdf` - Vertical orientation
-
-## Running the Tests
-
-From the GSEA submodule root directory:
+Only when a difference is understood, deliberate, and recorded. Re-capture the
+specific cases and nothing else:
 
 ```bash
-cd /workspaces/13036-DM_DMlab_summer_2025/01_Scripts/GSEA
-Rscript tests/test_volcano_plots.R
+Rscript tests/golden/capture_golden.R --cases=gsea_barplot
 ```
 
-This will:
-1. Run automated tests with `testthat`
-2. Generate PDF plots for visual inspection
-3. Print a summary of test results
+Without `--cases=`, every baseline is overwritten and unrelated drift gets
+blessed silently. `--cases=` also leaves `manifest.csv` untouched.
 
-## Expected Behavior
+### Checking that the gate is still live
 
-**Correct alignment** means:
+A green suite proves nothing if the gate cannot fail. Perturb one renderer and
+confirm `verify_golden.R` reports 19 pass / 1 fail, then revert. The gate is
+verified live this way rather than trusted.
 
-- In FDR mode with significant genes: dashed line at `-log10(max(P.Value[adj.P.Val <= cutoff]))`
-- In FDR mode with NO significant genes: dashed line at `-log10(cutoff)`
-- In raw p mode: dashed line at exactly `-log10(cutoff)`
+## Contracts worth knowing before you touch a plot
 
-The line should **perfectly align** with the boundary where point colors change from significant (colored) to non-significant (gray).
+Both were bugs once and are now asserted in `testthat/`:
 
-## Key Fix Applied
+- **ggplot2 4.0+ drops points with `colour = NA`** as missing values. Use
+  `colour = "transparent"`. No `colour = NA` remains in `R/`; keep it that way.
+- **The volcano's dashed line marks the colour boundary, not the cutoff.** In
+  FDR mode it sits at `-log10(max(P.Value[adj.P.Val <= cutoff]))` -- the raw p
+  of the last gene that passed -- so the line lands exactly where points stop
+  being coloured. In raw-p mode it sits at `-log10(p_cutoff)`. Asserted in
+  `testthat/test-de-volcano.R`.
 
-The original code had:
-```r
-p_thresh <- max(de_results$P.Value[sig_logic], p_cutoff, na.rm = TRUE)
+## No R on this host
+
+All R runs in a throwaway container. Both `--user` and `HOME` are required --
+`HOME` for `msigdbr`'s runtime cache, `--user` for `saveRDS` permissions:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/cache \
+  -v /data1/users/antonz/pipeline/.msigdb-cache:/cache \
+  -v "$PWD":/pkg -w /pkg scdock-r-dev:v0.5.11 \
+  Rscript tests/golden/verify_golden.R
 ```
 
-This incorrectly returned `p_cutoff` when ANY significant gene existed, causing misalignment.
+The metabolic (`gatom`) tests need the other image, with `HOME=/tmp` and no
+cache mount:
 
-The fix:
-```r
-sig_pvals <- de_results$P.Value[sig_logic]
-if (length(sig_pvals) > 0) {
-  p_thresh <- max(sig_pvals, na.rm = TRUE)  # Actual boundary
-} else {
-  p_thresh <- p_cutoff  # Fallback when no sig genes
-}
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  -v "$PWD":/pkg -w /pkg scbio-singleuser:v1.7.1 \
+  Rscript -e 'devtools::test(".")'
 ```
 
-## Dependencies
-
-- `testthat` for automated testing
-- `ggplot2` for plots
-- `ggrepel` for labels
-- The volcano plot functions from `scripts/DE/`
-
-## Interpreting Results
-
-All tests should **PASS**. If any test fails, it indicates:
-
-1. **Line misalignment**: The dashed line doesn't match the color boundary
-2. **Edge case failure**: An uncommon scenario (no sig genes, all sig, etc.) breaks the function
-3. **Logic error**: The significance decision and line position use different thresholds
-
-Visual inspection plots should show:
-- Dashed line exactly at the transition from colored to gray dots
-- No gap between the line and the color boundary
-- Consistent behavior across all edge cases
+`devtools::test_local()` does not exist in either image. Use `devtools::test(".")`.
+Scratch scripts go in `/tmp`, never in the repo.

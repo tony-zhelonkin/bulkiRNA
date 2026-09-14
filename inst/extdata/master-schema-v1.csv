@@ -1,0 +1,16 @@
+column,type,required,description
+pathway_id,character,yes,Stable pathway identifier
+pathway_name,character,yes,Unformatted pathway display name
+database,character,yes,Stable gene-set database key
+contrast,character,yes,Analysis contrast label
+nes,numeric,yes,Normalized enrichment score
+pvalue,numeric,yes,Raw enrichment p-value
+padj,numeric,yes,Multiplicity-adjusted enrichment p-value
+set_size,integer,yes,Number of pathway genes tested
+leading_edge_size,integer,yes,Number of genes in the leading edge
+gene_ratio,numeric,yes,Leading-edge size divided by tested set size
+core_enrichment,character,yes,Slash-delimited leading-edge genes
+genes_full_set,character,yes,Slash-delimited tested genes in the pathway
+direction,character,yes,Capitalized enrichment direction
+neg_log_padj,numeric,yes,Negative base-10 logarithm of adjusted p-value
+entity_type,character,no,Optional entity type for the unified master table

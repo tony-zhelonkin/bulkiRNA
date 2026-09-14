@@ -1,0 +1,111 @@
+# RNAseq-toolkit Reference Database Registry
+# Used by load_reference_db() and list_reference_dbs()
+version: "1.0.0"
+last_updated: "2026-04-14"
+
+databases:
+  mitopathways:
+    name: "MitoPathways 3.0"
+    description: "Hierarchical mitochondrial pathway gene sets from MitoCarta/MitoPathways"
+    source_url: "https://www.broadinstitute.org/mitocarta"
+    license: "Academic (Broad Institute)"
+    bundled: true
+    directory: "mitocarta3.0"
+    raw:
+      files:
+        - "raw/MitoPathways3.0.gmx"
+        - "raw/Human.MitoCarta3.0.xls"
+        - "raw/Mouse.MitoCarta3.0.xls"
+      format: "GMX (Gene Matrix eXtended)"
+      species: "Homo_sapiens"
+      notes: "MitoPathways3.0.gmx contains human gene symbols. MitoCarta XLS files are annotation references (not gene set sources)."
+    processed:
+      Mus_musculus:
+        file: "processed/Mus_musculus/mito_mitopathways.rds"
+        conversion: "homologene (human -> mouse) + title-case fallback"
+        n_genesets: ~149
+        n_genes: ~1100
+    parser: "parse_gmx"
+    requires_species_conversion: true
+    citations: "CITATIONS.bib"
+
+  mitoxplorer:
+    name: "mitoXplorer 3.0"
+    description: "Mitochondrial gene functional classifications from mitoXplorer"
+    source_url: "https://mitoxplorer.ibdm.univ-mrs.fr/"
+    license: "Academic"
+    bundled: true
+    directory: "mitoxplorer3.0"
+    raw:
+      files:
+        - "raw/mouse_gene_function.txt"
+        - "raw/mouse_links.txt"
+      format: "TSV (tab-separated values)"
+      species: "Mus_musculus"
+      notes: "Native mouse MGI symbols. mouse_links.txt contains gene-gene interaction edges."
+    processed:
+      Mus_musculus:
+        file: "processed/Mus_musculus/mito_mitoxplorer.rds"
+        conversion: "none (native mouse symbols)"
+        n_genesets: ~25
+        n_genes: ~1700
+    parser: "parse_mitoxplorer"
+    requires_species_conversion: false
+    citations: "CITATIONS.bib"
+
+  mito_unified:
+    name: "Unified Mitochondrial Pathways"
+    description: "MitoPathways + mitoXplorer merged with Jaccard deduplication (threshold 0.99)"
+    bundled: true
+    directory: "mitochondria_unified"
+    is_composite: true
+    components:
+      - "mitopathways"
+      - "mitoxplorer"
+    processed:
+      Mus_musculus:
+        file: "processed/Mus_musculus/unified_mito_pathways.rds"
+    notes: "Recommended for GSEA. Redundant gene sets collapsed; MITOPATHWAYS prefix preferred over MITOXPLORER when merging."
+
+  transportdb:
+    name: "TransportDB 2.0"
+    description: "Membrane transporter families classified by TCDB system"
+    source_url: "http://www.membranetransport.org/"
+    license: "Academic/Public"
+    bundled: true
+    directory: "transportdb"
+    raw:
+      files:
+        - "raw/TransportDB2.0.csv"
+      format: "CSV (headerless, 7 columns: RefSeq ProtID, Substrate, empty, Family Abbrev, Family Name, Type, TCDB)"
+      species: "Mus_musculus"
+      notes: "Mouse RefSeq protein IDs. Requires AnnotationDbi conversion to gene symbols."
+    processed:
+      Mus_musculus:
+        file: "processed/Mus_musculus/transportdb_genesets.rds"
+        conversion: "AnnotationDbi (REFSEQ -> SYMBOL via org.Mm.eg.db)"
+        n_genesets: ~30
+        n_genes: ~400
+    parser: "parse_transportdb"
+    requires_species_conversion: false
+    citations: "CITATIONS.bib"
+
+  gatom:
+    name: "GATOM Network Files"
+    description: "Atom-transition metabolic networks for active module discovery (KEGG, Rhea, Combined)"
+    source_url: "http://artyomovlab.wustl.edu/publications/supp_materials/GATOM/"
+    license: "Bioconductor (KEGG terms + Rhea CC-BY-4.0)"
+    bundled: false
+    reason: "Too large (~24MB). Use download_gatom_references() helper."
+    download_helper: "download_gatom_references"
+    files:
+      - "network.kegg.rds"
+      - "network.combined.rds"
+      - "network.rhea.rds"
+      - "network.rhea.lipids.rds"
+      - "met.kegg.db.rds"
+      - "met.combined.db.rds"
+      - "org.Mm.eg.gatom.anno.rds"
+      - "gene2reaction.kegg.mmu.eg.tsv"
+      - "gene2reaction.combined.mmu.eg.tsv"
+      - "gene2reaction.rhea.mmu.eg.tsv"

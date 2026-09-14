@@ -1,240 +1,131 @@
-# Migration Guide: Transitioning Existing Projects to New Branching Strategy
+# Migration: RNAseq-toolkit scripts → bulkiRNA package
 
-This guide helps migrate my existing projects that use the RNAseq-toolkit submodule from the old `dev` branch to the new project-specific branch workflow.
+For projects that `source()`d the toolkit from a submodule.
 
-## Background
+## API stability contract
 
-**Old workflow:** All projects directly used and modified the `dev` branch.
+`bulkirna_api()` returns the machine-readable public surface. Every export has a `lifecycle`:
 
-**New workflow:** Each project has its own `dev-{ProjectName}` branch, which can:
-- Develop features independently
-- Optionally contribute back to the shared `dev` branch
-- Pull improvements from `dev` when ready
+- `stable` follows semantic versioning; incompatible changes require a major release after
+  any applicable deprecation cycle.
+- `experimental` may change or disappear without a major version bump.
+- `deprecated` was a `0.x` tier. It is empty as of **1.0.0**: the 21 names were removed from
+  the public API and their implementations kept as non-exported golden-baseline fixtures.
 
-## Migration Steps for Each Project
+The separate `frozen` column recorded the 24 signatures inherited from the script library.
+Twenty-one of those left the public API in 1.0.0, so it now lists the remaining 3. `superseded_by` may describe a sequence or technique,
+and says plainly when part of an old behaviour has no replacement.
 
-### Step 1: Identify Projects
+## 1. Replace the sourcing
 
-List all projects currently using RNAseq-toolkit:
-- GVDRP1_prj (Already migrated to `dev-GVDRP1`)
-- Project2 (To be migrated to `dev-Project2`)
-- Project3 (To be migrated to `dev-Project3`)
-- etc.
+```r
+# before
+rtk <- "01_modules/RNAseq-toolkit/scripts"
+source(file.path(rtk, "GSEA/GSEA_processing/run_gsea.R"))
+source(file.path(rtk, "GSEA/GSEA_plotting/gsea_dotplot.R"))
+library(clusterProfiler)
 
-### Step 2: For Each Project, Create a Project-Specific Branch
-
-Navigate to the RNAseq-toolkit repository (not the submodule in your project):
-
-```bash
-# Clone or navigate to standalone RNAseq-toolkit repo
-cd /path/to/RNAseq-toolkit
-
-# Ensure you have latest dev
-git fetch origin
-git checkout dev
-git pull origin dev
-
-# Create project-specific branch from dev
-git checkout -b dev-Project2
-git push -u origin dev-Project2
-
-# Repeat for each project:
-git checkout dev
-git checkout -b dev-Project3
-git push -u origin dev-Project3
+# after
+library(bulkiRNA)
 ```
 
-### Step 3: Update Each Project's Submodule Configuration
+GSEA now runs through `fgsea` directly, so `clusterProfiler` leaves the dependency list.
 
-For each parent project, update the submodule to track its specific branch:
+## 2. Every old name worked through 0.x, and none works in 1.0.0
 
-```bash
-# Navigate to parent project
-cd /path/to/Project2
+Through the `0.x` series each old name was exported, warned once through `.Deprecated()`, and
+named its migration path, so a project ran after step 1 alone. **In 1.0.0 they are gone from
+the public API**, so step 1 is no longer sufficient and the table below is mandatory. A migration path may use several functions, and two deliberately note behaviour
+with no successor. Step 4 covers the two changes that reach further.
 
-# Update .gitmodules file
-# Add the line: branch = dev-Project2
-# Under [submodule "path/to/RNAseq-toolkit"]
+| Old | New |
+|---|---|
+| `download_gatom_references(dest_dir = )` | `gatom_download_refs(dir = )` |
+| `run_gsea()` | `gs_ranks()` + `gs_test()` |
+| `run_gsea_analysis()` | `gs_ranks()` + `gsdb_msigdb()` + `gs_test()` + `gs_plot_*()` |
+| `normalize_gsea_results()` | drop it — `gs_test()` already returns a tibble |
+| `empty_gsea_tibble()` | `gs_test()`; filter its result to zero rows for an empty `gs_result`; there is no exported constructor, by design |
+| `load_reference_db()` | `gsdb_load()` |
+| `list_reference_dbs()` | `gsdb_list()` |
+| `parse_gmx()` | `gsdb_from_file()` |
+| `parse_mitoxplorer()` | `gsdb_load("mitoxplorer")`, or `gsdb_from_file()` for an arbitrary file |
+| `list_to_term2gene()` | `gsdb_register()` |
+| `filter_by_size()` | `min_size=` / `max_size=` on `gsdb_msigdb()`, `gsdb_load()` or `gsdb_from_file()` |
+| `convert_human_to_mouse()` | `gsdb_msigdb(species = "Mus musculus", db_species = "HS")` |
+| `gsea_dotplot()`, `gsea_dotplot_facet()` | `gs_plot_dot()` |
+| `gsea_barplot()` | `gs_plot_bar()` |
+| `gsea_running_sum_plot()` | `gs_plot_running()` |
+| `plot_all_gsea_results()` | `gs_plot_dot()`, `gs_plot_bar()`, `gs_plot_running()` and `gs_save()` |
+| `create_standard_volcano()` | `de_volcano()` |
+| `create_MD_plot()` | `de_md_plot()` |
+| `custom_minimal_theme_with_grid()` | `theme_bulki()` |
+| `save_gsea_log()` | `gs_save()` for the plot/table artifact; the free-text log has no replacement |
 
-# Example .gitmodules after update:
-# [submodule "01_Scripts/RNAseq-toolkit"]
-#     path = 01_Scripts/RNAseq-toolkit
-#     url = git@github.com:tony-zhelonkin/RNAseq-toolkit.git
-#     branch = dev-Project2
+## 3. The typical rewrite
+
+```r
+# before
+res <- run_gsea(de_table, rank_metric = "t", species = "Mus musculus",
+                collection = "C2", subcollection = "CP:REACTOME")
+keep <- res@result$setSize >= 15 & res@result$setSize <= 500
+res@result <- res@result[keep, ]
+tbl <- normalize_gsea_results(res, database = "Reactome", contrast = co)
+
+# after
+ranks <- gs_ranks(de_table, metric = "t")
+db    <- gsdb_msigdb("Mus musculus", collection = "C2", subcollection = "CP:REACTOME")
+tbl   <- gs_test(ranks, db, min_size = 15, max_size = 500)
 ```
 
-Edit `.gitmodules` file or use this command:
+Three lines collapse into one because the size bound became an argument and the result
+arrives already normalized.
 
-```bash
-# Navigate to parent project root
-cd /path/to/Project2
+## 4. What changes in the output
 
-# Edit .gitmodules manually, or use:
-git config -f .gitmodules submodule.01_Scripts/RNAseq-toolkit.branch dev-Project2
+**Results are tibbles.** `gs_test()` and the `run_gsea()` shim both return a `gs_result`
+tibble, so `@result` raises an error, and so do `@geneSets` and `@geneList`. Read the
+columns directly.
 
-# Navigate to submodule and switch to project branch
-cd 01_Scripts/RNAseq-toolkit
-git fetch origin
-git checkout dev-Project2
+| old | new |
+|---|---|
+| `NES` | `stat` |
+| `pvalue` | `p_value` |
+| `setSize` | `n_genes_tested` |
+| `core_enrichment` (slash-joined string) | `leading_edge` (list column) |
 
-# Return to parent and commit the change
-cd ../..
-git add .gitmodules 01_Scripts/RNAseq-toolkit
-git commit -m "Migrate RNAseq-toolkit submodule to dev-Project2 branch"
-git push
+**`direction` reads `"up"` and `"down"`.** A filter written as `direction == "Up"` matches
+zero rows and reports nothing. Search for that comparison before trusting a re-run — it is
+the one change that stays quiet.
+
+**Size filtering happens before the test, which moves `padj`.** The old path adjusted across
+the whole collection and filtered by `setSize` afterwards. `gs_test(min_size=, max_size=)`
+filters first, so Benjamini-Hochberg runs over the family it actually tested. Expect `padj`
+to shift wherever the size bound bites.
+
+**The leading edge is fgsea's.** In every case measured so far it is a subset of the old
+clusterProfiler one, which lifts `gene_ratio`.
+
+**`pathway_name` reads better.** `format_pathway_name()` is a real function with a large
+acronym dictionary. Names improve; ids stay identical, so joins keep working.
+
+**`genes_full_set` moves to the caller.** It used to come from `gseaResult@geneSets`.
+Recompute it from the `gs_db` you tested against:
+
+```r
+paste(intersect(db[[pathway_id]], universe), collapse = "/")
 ```
 
-### Step 4: Verify the Migration
+**Give migrated scripts a new cache filename.** A staleness check that compares names only
+(`load_or_compute(expected_keys=)`) accepts an old cache full of `gseaResult`s and loads it
+straight into new code. A fresh filename keeps the two eras apart.
 
-Test that the submodule is properly configured:
+## 5. Retiring the submodule
 
-```bash
-# In parent project root
-git submodule update --remote
-
-# Navigate to submodule
-cd 01_Scripts/RNAseq-toolkit
-
-# Check current branch
-git branch --show-current
-# Should output: dev-Project2 (or project's branch name)
-
-# Verify tracking
-git status
-# Should show: "Branch is up to date with 'origin/dev-Project2'"
-```
-
-## Migration Checklist
-
-For each project:
-
-- [ ] Create project-specific branch in RNAseq-toolkit repo (`dev-ProjectName`)
-- [ ] Push branch to GitHub
-- [ ] Update parent project's `.gitmodules` to specify branch
-- [ ] Switch submodule to project-specific branch
-- [ ] Commit and push parent project changes
-- [ ] Verify submodule tracks correct branch
-- [ ] Document which features (if any) should be contributed back to `dev`
-
-## Post-Migration Workflow
-
-### Regular Development
+Once a project runs on the package and `bulkiRNA` is installed in the image:
 
 ```bash
-# In project's submodule
-cd path/to/RNAseq-toolkit
-git checkout dev-ProjectName
-
-# Make changes, commit, push
-git add .
-git commit -m "Add feature for ProjectName"
-git push origin dev-ProjectName
-
-# In parent project, commit submodule update
-cd ../..
-git add path/to/RNAseq-toolkit
-git commit -m "Update RNAseq-toolkit: Add feature X"
-git push
+git submodule deinit -f 01_modules/RNAseq-toolkit
+git rm -f 01_modules/RNAseq-toolkit
 ```
 
-### Contributing Features to Shared `dev`
-
-When you develop something useful for other projects:
-
-```bash
-# Push your changes to your project branch
-cd path/to/RNAseq-toolkit
-git push origin dev-ProjectName
-
-# Create Pull Request on GitHub:
-# Base: dev
-# Compare: dev-ProjectName
-#
-# After review and merge, other projects can pull your improvements
-```
-
-### Getting Updates from Other Projects
-
-```bash
-# Periodically merge shared dev into your project branch
-cd path/to/RNAseq-toolkit
-git checkout dev-ProjectName
-git fetch origin
-git merge origin/dev
-git push origin dev-ProjectName
-
-# Update parent project
-cd ../..
-git add path/to/RNAseq-toolkit
-git commit -m "Sync RNAseq-toolkit with latest dev improvements"
-git push
-```
-
-## Troubleshooting
-
-### Submodule shows detached HEAD
-
-```bash
-cd path/to/RNAseq-toolkit
-git checkout dev-ProjectName
-git pull origin dev-ProjectName
-```
-
-### Submodule not updating to correct branch
-
-```bash
-# Verify .gitmodules configuration
-cat .gitmodules
-
-# Force submodule to update
-git submodule update --remote --force
-
-# Or manually:
-cd path/to/RNAseq-toolkit
-git fetch origin
-git checkout dev-ProjectName
-```
-
-### Conflicts when merging dev into project branch
-
-```bash
-cd path/to/RNAseq-toolkit
-git checkout dev-ProjectName
-git fetch origin
-git merge origin/dev
-
-# Resolve conflicts
-# Edit conflicted files
-git add .
-git commit -m "Merge dev into dev-ProjectName: resolve conflicts"
-git push origin dev-ProjectName
-```
-
-## FAQ
-
-**Q: Do I have to contribute my changes back to `dev`?**
-
-A: No! Only contribute features that would be useful for other projects. Project-specific code stays in your project branch.
-
-**Q: Can I keep my project branch permanently separate?**
-
-A: Yes. You can develop independently and only merge from `dev` when you want updates. You never have to merge back.
-
-**Q: What if I want to switch my project back to the old `dev` branch?**
-
-A: Just update `.gitmodules` to `branch = dev`, run `git submodule update --remote`, and commit. But this defeats the purpose of the new workflow.
-
-**Q: How do I know when `dev` has new features I should pull?**
-
-A: Check the RNAseq-toolkit repository's `dev` branch commit history or pull requests. Coordinate with other users if needed.
-
-## Status Tracking
-
-| Project | Branch Name | Migrated? | Migration Date | Notes |
-|---------|-------------|-----------|----------------|-------|
-| GVDRP1_prj | dev-GVDRP1 | ✅ Yes | 2025-11-19 | Initial migration |
-| Project2 | dev-Project2 | ⬜ No | - | Pending |
-| Project3 | dev-Project3 | ⬜ No | - | Pending |
-| Project4 | dev-Project4 | ⬜ No | - | Pending |
-
-Update this table as you migrate each project.
+Keep the submodule until then. Its pinned commit is how you read the old implementations.

@@ -1,0 +1,113 @@
+---
+title: "GATOM metabolic-network modules"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{GATOM metabolic-network modules}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(bulkiRNA)
+```
+
+This guide is a vignette so the ordered workflow is discoverable through
+`browseVignettes("bulkiRNA")`. Its analysis chunks are intentionally not
+evaluated during package builds: GATOM needs the optional `gatom` and `mwcsr`
+packages plus about 24 MB of reference files that are not bundled. Fetching
+those files would violate an offline, no-refcache build. No output is invented
+below.
+
+Install the optional packages first:
+
+```text
+BiocManager::install("gatom")
+install.packages("mwcsr")
+```
+
+## 1.x: resolve the reference inputs
+
+The reference download is a one-time, networked preparation step. Keep the
+files in project reference storage and pass the directory explicitly on later
+runs. `gatom_refs()` returns the atom-transition network, metabolite database,
+and organism annotation together; the metabolite database is required even
+when no metabolite DE table is supplied.
+
+```{r references, eval=FALSE}
+refs_dir <- "00_data/references/gatom"
+
+# Network required only for this one-time fetch.
+gatom_download_refs(
+  dir = refs_dir,
+  species = "Homo sapiens",
+  networks = "kegg"
+)
+
+# Offline after the files above exist.
+refs <- gatom_refs(
+  species = "Homo sapiens",
+  dir = refs_dir,
+  network = "kegg"
+)
+refs
+```
+
+## 2.x: validate DE input, then solve the module
+
+Start from an unfiltered limma-style table with gene identifiers in `Symbol`.
+GATOM's BUM score needs **raw** p-values, not FDR, and `baseMean` must be on a
+linear scale. For limma output, `2^AveExpr` supplies that scale.
+
+```{r module, eval=FALSE}
+de_table <- utils::read.csv(
+  "03_results/demo/tables/1.6_de_treated_vs_control.csv",
+  row.names = 1,
+  check.names = FALSE
+)
+
+gatom_input <- gatom_de(
+  de_table,
+  id = Symbol,
+  pval = P.Value,
+  log2FC = logFC,
+  baseMean = 2^AveExpr
+)
+
+module <- gatom_module(
+  gatom_input,
+  refs,
+  k_gene = 50,
+  seed = 42L,
+  solver = "rnc"
+)
+module_genes <- gatom_genes(module)
+module_genes
+```
+
+`k_gene` is the size dial: smaller values tend to produce larger modules. The
+standard sensitivity branches are 25, 50, and 75. Scoring and solving are
+stochastic; the default seed 42 preserves the historical GATOM result and is
+recorded in the module. The package's complete stochastic registry makes that
+choice inspectable.
+
+```{r stochastic}
+subset(bulkirna_stochastic(quiet = TRUE), name == "gatom_module")
+```
+
+With atom topology, genes label graph **edges**, not vertices. Use
+`gatom_genes()` rather than reading vertex symbols. Rendering is a separate
+stage and does not recompute the module:
+
+```{r render, eval=FALSE}
+gatom_save_html(
+  module,
+  "03_results/demo/plots/GATOM/2.5_kegg_module.html",
+  name = "Treated vs control: KEGG metabolic module"
+)
+```
+
+The resulting stage layout is `2.5_gatom.R` for compute and
+`3.5_gatom_viz.R` for presentation. The DE input and the chosen reference
+files should be recorded beside the output; a module without either cannot be
+reproduced.
