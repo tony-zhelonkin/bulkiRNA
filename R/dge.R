@@ -63,8 +63,10 @@ build_dge <- function(count_mat, samples_df, genes_df,
 #' biomaRt step is best effort: a failure leaves the org.db result intact
 #' rather than aborting the annotation.
 #'
-#' Genes with no symbol keep their stable Ensembl ID as `Symbol`, so the column
-#' is never `NA` and downstream joins and plots do not silently lose rows.
+#' A gene with no org.db or biomaRt symbol takes its `input_gene_name`, the
+#' quantifier's own name, when one is supplied. A gene with neither keeps its
+#' stable Ensembl ID as `Symbol`, so the column is never `NA` and downstream
+#' joins and plots keep every row.
 #'
 #' @param ens_ids Character vector of Ensembl gene IDs, with or without
 #'   version suffixes.
@@ -153,6 +155,9 @@ annotate_genes <- function(ens_ids,
   } else {
     unname(input_gene_name[ann$Ensembl])
   }
+  fill <- ann$Symbol == ann$Ensembl & !is.na(ann$input_gene_name) &
+    nzchar(ann$input_gene_name)
+  ann$Symbol[fill] <- ann$input_gene_name[fill]
 
   ann[, c("Symbol", "Ensembl", "ENTREZID", "gene_biotype", "input_gene_name")]
 }

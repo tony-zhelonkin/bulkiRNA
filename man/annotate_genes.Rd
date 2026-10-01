@@ -43,8 +43,10 @@ biomaRt step is best effort: a failure leaves the org.db result intact
 rather than aborting the annotation.
 }
 \details{
-Genes with no symbol keep their stable Ensembl ID as \code{Symbol}, so the column
-is never \code{NA} and downstream joins and plots do not silently lose rows.
+A gene with no org.db or biomaRt symbol takes its \code{input_gene_name}, the
+quantifier's own name, when one is supplied. A gene with neither keeps its
+stable Ensembl ID as \code{Symbol}, so the column is never \code{NA} and downstream
+joins and plots keep every row.
 }
 \examples{
 if (requireNamespace("org.Mm.eg.db", quietly = TRUE)) {
