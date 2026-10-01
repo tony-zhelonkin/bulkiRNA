@@ -297,7 +297,7 @@ gatom_de <- function(x, id, pval, log2FC, baseMean) {
 #' `scoreGraph()`, then `mwcsr::solve_mwcsp()` -- and returns the module
 #' subgraph.
 #'
-#' `k_gene` is the module-size dial: **smaller `k` gives a larger module.**
+#' `k_gene` is the module-size dial: **larger `k` gives a larger module.**
 #' 50 is the GATOM default; 25 and 75 are the standard sensitivity branches.
 #' Scoring and solving are stochastic, so `seed` is reset independently before
 #' each call and recorded on the result.
@@ -305,7 +305,9 @@ gatom_de <- function(x, id, pval, log2FC, baseMean) {
 #' @param de A `gatom_de` table from [gatom_de()] (or a data frame with the
 #'   same four columns).
 #' @param refs A `gatom_refs` object from [gatom_refs()].
-#' @param k_gene Numeric(1) gene-score parameter; smaller means larger module.
+#' @param k_gene Numeric(1) gene-score parameter: the gene p-value threshold is
+#'   the `k_gene`-th smallest p-value, capped at an FDR of 0.1, so larger means
+#'   larger module.
 #' @param k_met Numeric(1) metabolite-score parameter, or `NULL` when
 #'   `met_de` is `NULL`.
 #' @param met_de Optional metabolite DE table.
@@ -353,7 +355,7 @@ gatom_module <- function(de, refs, k_gene = 50, k_met = NULL, met_de = NULL,
   if (!is.numeric(k_gene) || length(k_gene) != 1L || is.na(k_gene) ||
         k_gene <= 0) {
     stop("`k_gene` must be a single positive number (50 is the GATOM ",
-         "default; smaller k gives a larger module).", call. = FALSE)
+         "default; larger k gives a larger module).", call. = FALSE)
   }
   if (!is.null(k_met) &&
         (!is.numeric(k_met) || length(k_met) != 1L || is.na(k_met))) {

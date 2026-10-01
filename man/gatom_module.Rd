@@ -22,7 +22,9 @@ same four columns).}
 
 \item{refs}{A \code{gatom_refs} object from \code{\link[=gatom_refs]{gatom_refs()}}.}
 
-\item{k_gene}{Numeric(1) gene-score parameter; smaller means larger module.}
+\item{k_gene}{Numeric(1) gene-score parameter: the gene p-value threshold is
+the \code{k_gene}-th smallest p-value, capped at an FDR of 0.1, so larger means
+larger module.}
 
 \item{k_met}{Numeric(1) metabolite-score parameter, or \code{NULL} when
 \code{met_de} is \code{NULL}.}
@@ -55,7 +57,7 @@ Runs the three-call GATOM pipeline -- \code{makeMetabolicGraph()} (with
 subgraph.
 }
 \details{
-\code{k_gene} is the module-size dial: \strong{smaller \code{k} gives a larger module.}
+\code{k_gene} is the module-size dial: \strong{larger \code{k} gives a larger module.}
 50 is the GATOM default; 25 and 75 are the standard sensitivity branches.
 Scoring and solving are stochastic, so \code{seed} is reset independently before
 each call and recorded on the result.
