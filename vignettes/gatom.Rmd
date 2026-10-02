@@ -85,7 +85,7 @@ module_genes <- gatom_genes(module)
 module_genes
 ```
 
-`k_gene` is the size dial: smaller values tend to produce larger modules. The
+`k_gene` is the size dial: larger values produce larger modules. The
 standard sensitivity branches are 25, 50, and 75. Scoring and solving are
 stochastic; the default seed 42 preserves the historical GATOM result and is
 recorded in the module. The package's complete stochastic registry makes that

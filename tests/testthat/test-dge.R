@@ -61,6 +61,24 @@ test_that("annotate_genes threads a named input_gene_name through", {
   expect_true(all(is.na(ann2$input_gene_name)))
 })
 
+test_that("annotate_genes fills an unresolved Symbol from input_gene_name", {
+  skip_if_not_installed("org.Mm.eg.db")
+  skip_if_not_installed("AnnotationDbi")
+  ids <- c("ENSMUSG00000000001.5", "ENSMUSG99999999999.1", "ENSMUSG99999999998")
+  ign <- c(ENSMUSG00000000001 = "Quant1", ENSMUSG99999999999 = "Gm99999",
+           ENSMUSG99999999998 = "")
+  ann <- annotate_genes(ids, use_biomart = FALSE, input_gene_name = ign)
+  ref <- annotate_genes(ids, use_biomart = FALSE)
+
+  # org.db wins where it has a symbol; the quantifier name fills the gap.
+  expect_equal(ann$Symbol[1], ref$Symbol[1])
+  expect_false(ref$Symbol[1] == "Quant1")
+  expect_equal(ann$Symbol[2], "Gm99999")
+  expect_equal(ref$Symbol[2], "ENSMUSG99999999999")
+  # An empty quantifier name leaves the stable-ID fallback in place.
+  expect_equal(ann$Symbol[3], "ENSMUSG99999999998")
+})
+
 test_that("annotate_genes validates species", {
   expect_error(
     annotate_genes("ENSMUSG1", species = "rat"),

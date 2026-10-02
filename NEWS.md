@@ -1,6 +1,20 @@
 # bulkiRNA (development version)
 
-Nothing yet. `1.1.0.9000` names the next release, not this tree.
+`1.2.0.9000` names the next release.
+
+## Behaviour
+
+* `annotate_genes()` fills `Symbol` from `input_gene_name` where org.db and
+  biomaRt have no symbol, as `read_counts_matrix()` documents. Measured on a
+  78,317-gene GENCODE vM37 Salmon matrix: 43,211 genes kept their Ensembl ID
+  as `Symbol` before this change. Genes org.db or biomaRt name are unchanged.
+
+## Documentation
+
+* `gatom_module()` states the `k_gene` direction correctly: larger `k_gene`
+  gives a larger module. `gatom::scoreGraph()` thresholds gene p-values at the
+  `k.gene`-th smallest value, capped at FDR 0.1. The error message for an
+  invalid `k_gene` says the same.
 
 # bulkiRNA 1.0.0
 
