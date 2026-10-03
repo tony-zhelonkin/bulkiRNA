@@ -58,7 +58,9 @@ validation and were excluded, with columns \code{chunk}, \code{element}, \code{g
 \code{reason}. It is zero-row for a clean sweep. Two of roughly 42,500 \code{mmu}
 datasets carry a missing \code{totalVar}, and before this was a skip the whole
 compendium aborted on them. A chunk in which \emph{nothing} validates is still
-an error, because that is indistinguishable from a broken snapshot.
+an error, because that is indistinguishable from a broken snapshot, and
+so is a sweep in which more than 1\% of datasets fail. \code{\link[=coresh_chunks]{coresh_chunks()}}
+applies the same rules, so the index and the search agree.
 }
 \description{
 Scores each named Entrez query against every dataset for one species. With

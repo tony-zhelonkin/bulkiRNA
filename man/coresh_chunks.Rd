@@ -16,7 +16,10 @@ When \code{NULL}, resolve the corresponding directory in the shared refcache.}
 }
 \value{
 A tibble with columns \code{gse}, \code{gpl}, and \code{chunk}. Its \code{provenance}
-attribute records the resolved reference snapshot.
+attribute records the resolved reference snapshot, the number of datasets
+read and the GSE ids skipped. Its \code{skipped} attribute is the skip report
+described in \code{\link[=coresh_search]{coresh_search()}}: invalid datasets are excluded and named,
+with the same rules and the same 1\% ceiling.
 }
 \description{
 Reads every chunk for one species and returns one row per GEO dataset,

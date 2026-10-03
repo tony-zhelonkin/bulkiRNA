@@ -9,6 +9,19 @@
   78,317-gene GENCODE vM37 Salmon matrix: 43,211 genes kept their Ensembl ID
   as `Symbol` before this change. Genes org.db or biomaRt name are unchanged.
 
+* `coresh_chunks()` skips invalid datasets, as `coresh_search()` has since
+  1.1.0, so `coresh_sets()` and `gsdb_coresh()` complete on the mouse
+  compendium. Snapshot `syn66227307_20260721` holds 42,224 `mmu` datasets; two,
+  GSE63 and GSE1457, carry `totalVar = NA`, and the index stopped on the first.
+  One internal function now holds the skip rule for both entry points.
+
+* Skips are recorded. The index and the search carry a `skipped` attribute and
+  `n_datasets`, `n_skipped` and `skipped_gse` in their provenance;
+  `coresh_sets()` copies the last two into the gene-set database's provenance.
+
+* A sweep stops when more than 1% of datasets fail validation: a snapshot that
+  broken is corrupt, and a partial result would read as complete.
+
 ## Documentation
 
 * `gatom_module()` states the `k_gene` direction correctly: larger `k_gene`

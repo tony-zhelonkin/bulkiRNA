@@ -4,7 +4,13 @@
 \alias{.coresh_provenance}
 \title{Build CoReSh reference provenance}
 \usage{
-.coresh_provenance(path, species, n_chunks)
+.coresh_provenance(
+  path,
+  species,
+  n_chunks,
+  skipped = .coresh_empty_skipped(),
+  n_datasets = NA_integer_
+)
 }
 \arguments{
 \item{path}{A path returned by \code{\link[=.coresh_chunk_dir]{.coresh_chunk_dir()}}.}
@@ -12,9 +18,14 @@
 \item{species}{Normalized species code.}
 
 \item{n_chunks}{Number of chunk files.}
+
+\item{skipped}{The skip report for the sweep.}
+
+\item{n_datasets}{Number of datasets read, valid or not.}
 }
 \value{
-A named list.
+A named list of scalars. \code{skipped_gse} joins the skipped GSE ids
+with commas and is \code{""} for a clean sweep.
 }
 \description{
 Build CoReSh reference provenance
