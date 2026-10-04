@@ -21,7 +21,8 @@
 }
 \value{
 A search-shaped tibble without ranks, carrying a \code{skipped}
-attribute: a data frame of the datasets that failed validation.
+attribute, a data frame of the datasets that failed validation, and an
+\code{n_datasets} attribute, the number of datasets read.
 }
 \description{
 Score one CoReSh chunk file

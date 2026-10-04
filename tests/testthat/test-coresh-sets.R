@@ -582,3 +582,40 @@ test_that("coresh_sets validates its inputs and parameters", {
     "`top_hits\\$gpl`"
   )
 })
+
+test_that("coresh_sets builds sets past an invalid dataset and records it", {
+  skip_if_not(exists("local_mocked_bindings", asNamespace("testthat")))
+  # The real index path: coresh_chunks() reads a chunk holding one dataset
+  # with totalVar = NA. Before 1.2.0 it stopped here and no set was built.
+  chunks <- withr::local_tempdir()
+  file.create(file.path(chunks, "001_full_objects.qs2"))
+  ok <- list(gseId = "GSE_OK", gplId = "GPL1",
+             E1024 = matrix(1L, nrow = 3L, ncol = 1L),
+             rownames = 1:3, totalVar = 10)
+  broken <- ok
+  broken$gseId <- "GSE_BROKEN"
+  broken$totalVar <- NA_real_
+  testthat::local_mocked_bindings(
+    .coresh_read_chunk = function(path) list(ok, broken),
+    .coresh_max_skip_fraction = function() 1,
+    coresh_loadings = function(chunk_path, gse_id, query, top_n = 50L,
+                               gpl = NULL) {
+      tibble::tibble(gse = gse_id, gpl = gpl, entrez = 1:10,
+                     loading = 10:1, rank = 1:10)
+    },
+    entrez_to_gene = function(entrez, species = "human") {
+      stats::setNames(paste0("G", entrez), entrez)
+    },
+    .package = "bulkiRNA"
+  )
+  top_hits <- tibble::tibble(query_name = "q", gse = "GSE_OK", gpl = "GPL1",
+                             rank = 1L)
+
+  db <- suppressMessages(coresh_sets(
+    top_hits, list(q = 1:3), chunk_dir = chunks, species = "human",
+    min_size = 1L, max_size = 20L
+  ))
+  expect_identical(names(db), "CORESH_q_GSE_OK")
+  expect_identical(attr(db, "provenance")$n_skipped, 1L)
+  expect_identical(attr(db, "provenance")$skipped_gse, "GSE_BROKEN")
+})

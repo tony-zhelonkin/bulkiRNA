@@ -709,10 +709,12 @@ test_that("coresh_search skips an invalid dataset, and names it", {
   broken <- fake_coresh_object("GSE_BROKEN")
   broken$totalVar <- NA_real_
 
+  # One of two is 50%, above the snapshot ceiling; lift it to test the skip.
   testthat::local_mocked_bindings(
     .coresh_read_chunk = function(path) {
       list(fake_coresh_object("GSE_OK", total_var = 10), broken)
     },
+    .coresh_max_skip_fraction = function() 1,
     .require_pkg = function(...) stop("an optional engine was requested",
                                      call. = FALSE),
     .package = "bulkiRNA"
@@ -731,7 +733,7 @@ test_that("coresh_search skips an invalid dataset, and names it", {
       invokeRestart("muffleMessage")
     }
   )
-  expect_true(any(grepl("skipped 1 dataset", msgs, fixed = TRUE)))
+  expect_true(any(grepl("skipped 1 of 2 dataset", msgs, fixed = TRUE)))
   expect_true(any(grepl("GSE_BROKEN", msgs, fixed = TRUE)))
 
   # The valid dataset is still scored: the run completes rather than aborting.
@@ -793,4 +795,121 @@ test_that("a chunk where nothing validates is still an error", {
     ),
     "No dataset in the chunk at `path` passed validation"
   )
+})
+
+# --- The index used to keep its own copy of the validation loop -------------
+# coresh_search() learned to skip GSE63 and GSE1457 in 1.1.0; coresh_chunks(),
+# which coresh_sets() and gsdb_coresh() call, still stopped on the first one.
+# These tests hold both entry points to one policy.
+
+# A chunk of `n_ok` valid datasets followed by one with totalVar = NA.
+chunk_with_broken <- function(n_ok = 1L) {
+  broken <- fake_coresh_object("GSE_BROKEN")
+  broken$totalVar <- NA_real_
+  c(lapply(sprintf("GSE_OK%03d", seq_len(n_ok)), fake_coresh_object),
+    list(broken))
+}
+
+collect_messages <- function(expr) {
+  msgs <- character()
+  value <- withCallingHandlers(expr, message = function(m) {
+    msgs <<- c(msgs, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  })
+  list(value = value, messages = msgs)
+}
+
+test_that("coresh_chunks skips an invalid dataset and records it", {
+  skip_if_not(exists("local_mocked_bindings", asNamespace("testthat")))
+  chunks <- withr::local_tempdir()
+  file.create(file.path(chunks, "001_full_objects.qs2"))
+  testthat::local_mocked_bindings(
+    .coresh_read_chunk = function(path) chunk_with_broken(),
+    .coresh_max_skip_fraction = function() 1,
+    .package = "bulkiRNA"
+  )
+
+  run <- collect_messages(coresh_chunks(chunks, cache = FALSE))
+  index <- run$value
+  expect_identical(index$gse, "GSE_OK001")
+  expect_true(any(grepl("coresh_chunks(): skipped 1 of 2 dataset",
+                        run$messages, fixed = TRUE)))
+  expect_true(any(grepl("GSE_BROKEN", run$messages, fixed = TRUE)))
+
+  skipped <- attr(index, "skipped")
+  expect_identical(skipped$gse, "GSE_BROKEN")
+  expect_identical(skipped$element, 2L)
+  expect_match(skipped$reason, "totalVar")
+
+  provenance <- attr(index, "provenance")
+  expect_identical(provenance$n_datasets, 2L)
+  expect_identical(provenance$n_skipped, 1L)
+  expect_identical(provenance$skipped_gse, "GSE_BROKEN")
+})
+
+test_that("coresh_chunks and coresh_search skip the same datasets", {
+  skip_if_not(exists("local_mocked_bindings", asNamespace("testthat")))
+  chunks <- withr::local_tempdir()
+  file.create(file.path(chunks, c("001_full_objects.qs2",
+                                  "002_full_objects.qs2")))
+  testthat::local_mocked_bindings(
+    .coresh_read_chunk = function(path) chunk_with_broken(2L),
+    .coresh_max_skip_fraction = function() 1,
+    .require_pkg = function(...) stop("an optional engine was requested",
+                                      call. = FALSE),
+    .package = "bulkiRNA"
+  )
+
+  index <- suppressMessages(coresh_chunks(chunks, cache = FALSE))
+  hits <- suppressMessages(coresh_search(
+    list(q = c(10L, 20L, 99L)), chunk_dir = chunks, species = "human",
+    n_cores = 1L, pvalues = FALSE
+  ))
+  expect_identical(nrow(attr(index, "skipped")), 2L)
+  expect_identical(attr(index, "skipped"), attr(hits, "skipped"))
+  expect_identical(sort(unique(hits$gse)), sort(unique(index$gse)))
+  provenance_fields <- c("n_datasets", "n_skipped", "skipped_gse")
+  expect_identical(attr(index, "provenance")[provenance_fields],
+                   attr(hits, "provenance")[provenance_fields])
+})
+
+test_that("a dirty snapshot passes and a corrupt one stops", {
+  skip_if_not(exists("local_mocked_bindings", asNamespace("testthat")))
+  chunks <- withr::local_tempdir()
+  file.create(file.path(chunks, "001_full_objects.qs2"))
+  n_ok <- 100L
+  testthat::local_mocked_bindings(
+    .coresh_read_chunk = function(path) chunk_with_broken(n_ok),
+    .require_pkg = function(...) stop("an optional engine was requested",
+                                      call. = FALSE),
+    .package = "bulkiRNA"
+  )
+  search <- function() {
+    coresh_search(list(q = c(10L, 20L, 99L)), chunk_dir = chunks,
+                  species = "human", n_cores = 1L, pvalues = FALSE)
+  }
+
+  # 1 of 101 invalid sits under the default 1% ceiling.
+  index <- suppressMessages(coresh_chunks(chunks, cache = FALSE))
+  expect_identical(nrow(index), n_ok)
+  expect_identical(nrow(attr(suppressMessages(search()), "skipped")), 1L)
+
+  # 1 of 3 invalid is a corrupt snapshot.
+  n_ok <- 2L
+  expect_error(coresh_chunks(chunks, cache = FALSE),
+               "coresh_chunks\\(\\): 1 of 3 datasets failed validation")
+  expect_error(search(), "coresh_search\\(\\): 1 of 3 datasets failed")
+})
+
+test_that("coresh_chunks still errors on a chunk where nothing validates", {
+  skip_if_not(exists("local_mocked_bindings", asNamespace("testthat")))
+  chunks <- withr::local_tempdir()
+  file.create(file.path(chunks, "001_full_objects.qs2"))
+  testthat::local_mocked_bindings(
+    .coresh_read_chunk = function(path) chunk_with_broken(0L),
+    .coresh_max_skip_fraction = function() 1,
+    .package = "bulkiRNA"
+  )
+  expect_error(coresh_chunks(chunks, cache = FALSE),
+               "No dataset in the chunk at `path` passed validation")
 })

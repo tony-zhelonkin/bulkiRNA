@@ -536,6 +536,8 @@ coresh_sets <- function(top_hits, queries, chunk_dir = NULL,
     species = species_info$scientific,
     n_chunks = index_provenance$n_chunks %||%
       as.integer(length(unique(index$chunk))),
+    n_skipped = index_provenance$n_skipped %||% 0L,
+    skipped_gse = index_provenance$skipped_gse %||% "",
     queries = query_summary,
     top_hits = if (nrow(top_hits)) {
       as.integer(max(top_hits$rank))
