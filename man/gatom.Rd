@@ -4,19 +4,33 @@
 \alias{gatom}
 \title{GATOM metabolic-network modules}
 \description{
-A five-function wrapper around the GATOM workflow (build an atom-resolved
-metabolic graph, score it, solve for the maximum-weight connected subgraph).
-The wrapper exists to \emph{enforce} the four traps that the raw API only
-documents:
+GATOM is three calls: \code{gatom::makeMetabolicGraph()} builds an
+atom-resolved metabolic graph, \code{gatom::scoreGraph()} scores it, and
+\code{mwcsr::solve_mwcsp()} finds the maximum-weight connected subgraph. The
+wrapper is the same three layers, each a pure function that checks its
+inputs and records what it did as attributes on its result:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{gatom_refs() + gatom_de() -> gatom_graph() -> gatom_score() -> gatom_solve()
+                                                               gatom_solver()
+}\if{html}{\out{</div>}}
+
+\code{\link[=gatom_module]{gatom_module()}} runs the three in order. \code{\link[=gatom_genes]{gatom_genes()}} and
+\code{\link[=gatom_pathways]{gatom_pathways()}} read a module; \code{\link[=gatom_save_html]{gatom_save_html()}} writes one.
+
+The traps the raw API only documents are enforced here:
 \enumerate{
 \item \code{pval} must be \strong{raw} p-values -- BUM scoring degrades silently on FDR
 values. \code{\link[=gatom_de]{gatom_de()}} refuses an adjusted-p column.
-\item \code{baseMean} must be on the \strong{linear} scale (\code{2^AveExpr} from limma).
-\code{\link[=gatom_de]{gatom_de()}} warns on the log-scale smell.
-\item With \code{topology = "atoms"} the genes live on the graph \strong{edges}, not the
-vertices. \code{\link[=gatom_genes]{gatom_genes()}} is the only correct extractor.
+\item gatom keeps the 12,000 genes ranked highest by \code{baseMean} and drops the
+rest before mapping. \code{\link[=gatom_graph]{gatom_graph()}} reports how many genes that
+removed.
+\item The genes live on the graph \strong{edges}, not the vertices.
+\code{\link[=gatom_genes]{gatom_genes()}} reads the edges.
 \item \code{met.db} is required even when \code{met.de} is \code{NULL}. \code{\link[=gatom_refs]{gatom_refs()}} carries
-it, so \code{\link[=gatom_module]{gatom_module()}} cannot omit it.
+it, so \code{\link[=gatom_graph]{gatom_graph()}} cannot omit it.
+\item A p-value distribution that does not fit a beta-uniform mixture makes
+\code{scoreGraph()} set every score to 0 with only a warning. \code{\link[=gatom_score]{gatom_score()}}
+stops instead.
 }
 }
 \keyword{internal}

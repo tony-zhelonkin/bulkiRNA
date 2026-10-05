@@ -13,60 +13,57 @@ gatom_module(
   seed = 42,
   solver = "rnc",
   verbose = FALSE,
-  gene2reaction_extra = NULL
+  gene2reaction_extra = NULL,
+  topology = c("atoms", "metabolites"),
+  keep_reactions_without_enzymes = FALSE
 )
 }
 \arguments{
-\item{de}{A \code{gatom_de} table from \code{\link[=gatom_de]{gatom_de()}} (or a data frame with the
-same four columns).}
+\item{de}{A \code{gatom_de} table from \code{\link[=gatom_de]{gatom_de()}}, or \code{NULL} with \code{met_de}.}
 
 \item{refs}{A \code{gatom_refs} object from \code{\link[=gatom_refs]{gatom_refs()}}.}
 
-\item{k_gene}{Numeric(1) gene-score parameter: the gene p-value threshold is
-the \code{k_gene}-th smallest p-value, capped at an FDR of 0.1, so larger means
-larger module.}
+\item{k_gene}{Numeric(1) gene scoring parameter, or \code{NULL}; see
+\code{\link[=gatom_score]{gatom_score()}}.}
 
-\item{k_met}{Numeric(1) metabolite-score parameter, or \code{NULL} when
+\item{k_met}{Numeric(1) metabolite scoring parameter, or \code{NULL} when
 \code{met_de} is \code{NULL}.}
 
 \item{met_de}{Optional metabolite DE table.}
 
-\item{seed}{Integer(1) RNG seed reset separately before scoring and solving.
-For callers using R's default generator, each stochastic call starts from
-the same state as before this helper was introduced, so results do not
-move. Results do move to the reproducible value when callers had changed
-\code{RNGkind()}.}
+\item{seed}{Integer(1) seed, applied separately to the BUM fit and the
+solver.}
 
-\item{solver}{Character(1): \code{"rnc"} (default), \code{"rmwcs"} or \code{"annealing"}.}
+\item{solver}{\code{"rnc"} (default), \code{"virgo"}, or an \code{mwcs_solver} from
+\code{\link[=gatom_solver]{gatom_solver()}}. \code{"rmwcs"} and \code{"annealing"} are deprecated.}
 
-\item{verbose}{Logical(1); report graph and module sizes.}
+\item{verbose}{Logical(1); also report the graph and module sizes.}
 
-\item{gene2reaction_extra}{Optional data frame of additional gene-to-reaction
-mappings with columns \code{gene} and \code{reaction}. Passed to
-\code{gatom::makeMetabolicGraph()} as \code{gene2reaction.extra}.}
+\item{gene2reaction_extra}{Deprecated: \code{\link[=gatom_refs]{gatom_refs()}} now loads the
+network's \code{gene2reaction} table. A data frame given here replaces it.}
+
+\item{topology}{\code{"atoms"} (default) or \code{"metabolites"}; see
+\code{\link[=gatom_graph]{gatom_graph()}}.}
+
+\item{keep_reactions_without_enzymes}{Logical(1); see \code{\link[=gatom_graph]{gatom_graph()}}.}
 }
 \value{
-The module as an \code{igraph}, with attributes \code{solution_weight},
-\code{k_gene}, \code{k_met}, \code{seed}, \code{solver}, \code{species}, \code{graph_nodes},
-\code{graph_edges}, \code{n_nodes} and \code{n_edges}.
+The module from \code{\link[=gatom_solve]{gatom_solve()}}.
 }
 \description{
-Runs the three-call GATOM pipeline -- \code{makeMetabolicGraph()} (with
-\code{topology = "atoms"} and \code{keepReactionsWithoutEnzymes = FALSE}),
-\code{scoreGraph()}, then \code{mwcsr::solve_mwcsp()} -- and returns the module
-subgraph.
+\code{\link[=gatom_graph]{gatom_graph()}}, \code{\link[=gatom_score]{gatom_score()}} and \code{\link[=gatom_solve]{gatom_solve()}} in order, with one
+seed for the BUM fit and the solver. Use the layers directly to reuse a
+graph across \code{k_gene} values or to compare solvers on one scored graph.
 }
 \details{
 \code{k_gene} is the module-size dial: \strong{larger \code{k} gives a larger module.}
 50 is the GATOM default; 25 and 75 are the standard sensitivity branches.
-Scoring and solving are stochastic, so \code{seed} is reset independently before
-each call and recorded on the result.
 }
 \examples{
 \dontrun{
-refs <- gatom_refs("Homo sapiens")
+refs <- gatom_refs("Mus musculus", network = "combined")
 de <- gatom_de(tt, id = symbol, pval = P.Value, log2FC = logFC,
-               baseMean = 2^AveExpr)
+               baseMean = AveExpr)
 m <- gatom_module(de, refs, k_gene = 50, seed = 42)
 }
 }

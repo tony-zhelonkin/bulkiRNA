@@ -49,8 +49,10 @@ test_that("the API registry covers the complete namespace exactly once", {
   )
   expect_equal(nrow(api), length(exports))
   # 64 at 1.1.0: + bulki_palettes, gs_palette, gs_plot_size, gs_scale_fonts
-  # (stable) and coresh_labels (experimental).
-  expect_equal(nrow(api), 64L)
+  # (stable) and coresh_labels (experimental). 69 at 1.2.0: + gatom_graph,
+  # gatom_pathways, gatom_score, gatom_solve, gatom_solver,
+  # gatom_save_pdf (experimental).
+  expect_equal(nrow(api), 70L)
   expect_equal(anyDuplicated(api$name), 0L)
   expect_setequal(api$name, exports)
   expect_identical(api$name, sort(api$name))
@@ -64,11 +66,11 @@ test_that("each export has one stability lifecycle and one layer", {
   expect_true(all(nzchar(api$layer)))
   expect_true(all(api$lifecycle %in% c("stable", "experimental", "deprecated")))
   expect_equal(sum(api$lifecycle == "stable"), 51L)
-  expect_equal(sum(api$lifecycle == "experimental"), 13L)
+  expect_equal(sum(api$lifecycle == "experimental"), 19L)
   expect_equal(sum(api$lifecycle == "deprecated"), 0L)
 })
 
-test_that("experimental status covers CoReSh, coregulation and gene-id helpers", {
+test_that("experimental status covers CoReSh, coregulation, GATOM layers and gene-id helpers", {
   api <- bulkirna_api(quiet = TRUE)
   experimental <- c(
     # coresh_labels is new at 1.1.0 and stays experimental with the rest of the
@@ -77,7 +79,10 @@ test_that("experimental status covers CoReSh, coregulation and gene-id helpers",
     "coresh_match",
     "coresh_search", "coresh_sets", "coresh_validate", "gs_coregulation",
     "gsdb_coresh", "entrez_to_gene", "filter_confounder_genes",
-    "gene_to_entrez"
+    "gene_to_entrez",
+    # The GATOM layers are new at 1.2.0; gatom_module() above them is stable.
+    "gatom_graph", "gatom_pathways", "gatom_save_pdf", "gatom_score",
+    "gatom_solve", "gatom_solver"
   )
 
   expect_setequal(api$name[api$lifecycle == "experimental"], experimental)

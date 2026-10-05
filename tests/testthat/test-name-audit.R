@@ -187,6 +187,23 @@ test_that("live export formals use the complete audited vocabulary", {
       )
     ),
     single_use(
+      c("g", "gs"),
+      paste(
+        "The GATOM vignette's own names for a metabolic graph and its scored",
+        "instance; the layer functions take them in that order."
+      )
+    ),
+    single_use(
+      c(
+        "cplex_dir", "force", "keep_reactions_without_enzymes", "n_iter",
+        "penalty", "threads", "timelimit", "topology"
+      ),
+      paste(
+        "A gatom or mwcsr parameter in snake case, with the upstream meaning",
+        "and default."
+      )
+    ),
+    single_use(
       c(
         "...", "biomart_host", "biomart_version", "by", "by_contrast",
         "by_direction", "cache", "center", "chunk_dir", "chunk_path", "coef",

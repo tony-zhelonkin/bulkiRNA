@@ -53,7 +53,7 @@ return_audit_contract <- function() {
     return_audit_rows("gs_plot_running", "renderer", "patchwork"),
     return_audit_rows(
       c(
-        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gs_save",
+        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gatom_save_pdf", "gs_save",
         "gs_write", "write_session_provenance"
       ),
       "writer", "character"
@@ -68,7 +68,12 @@ return_audit_contract <- function() {
     return_audit_rows("gs_score", "domain object", "gs_matrix"),
     return_audit_rows("build_dge", "domain object", "DGEList"),
     return_audit_rows("gatom_de", "domain object", "gatom_de"),
-    return_audit_rows("gatom_module", "domain object", "igraph"),
+    return_audit_rows(
+      c("gatom_graph", "gatom_module", "gatom_score", "gatom_solve"),
+      "domain object", "igraph"
+    ),
+    return_audit_rows("gatom_solver", "domain object", "mwcs_solver"),
+    return_audit_rows("gatom_pathways", "tabular", "tbl_df"),
     return_audit_rows("gatom_refs", "domain object", "gatom_refs"),
     return_audit_rows("de_pca_3d", "interactive renderer", "plotly"),
     return_audit_rows("theme_bulki", "renderer component", "theme"),
@@ -118,9 +123,33 @@ return_audit_probe_exceptions <- c(
     "Requires optional igraph; test-gatom.R asserts its character-vector",
     "contract on a module fixture."
   ),
+  gatom_graph = paste(
+    "Requires the optional GATOM and igraph stack; test-gatom.R builds a graph",
+    "from gatom's example data and asserts the igraph and its attributes."
+  ),
   gatom_module = paste(
-    "Requires the optional GATOM, mwcsr, and igraph stack; test-gatom.R mocks",
-    "the stochastic third-party pipeline and asserts an igraph result."
+    "Requires the optional GATOM, mwcsr, and igraph stack; test-gatom.R runs",
+    "it on gatom's example data and asserts an igraph result."
+  ),
+  gatom_pathways = paste(
+    "Requires the optional GATOM, mwcsr, and igraph stack to build a module;",
+    "test-gatom.R asserts the tibble against a direct fora() call."
+  ),
+  gatom_score = paste(
+    "Requires the optional GATOM and igraph stack; test-gatom.R scores",
+    "gatom's example graph and asserts the igraph and its fit attributes."
+  ),
+  gatom_solve = paste(
+    "Requires the optional GATOM, mwcsr, and igraph stack; test-gatom.R",
+    "solves gatom's example graph and asserts the igraph module."
+  ),
+  gatom_solver = paste(
+    "Requires optional mwcsr; test-gatom.R asserts the mwcs_solver object",
+    "and the errors that refuse the approximate virgo mode."
+  ),
+  gatom_save_pdf = paste(
+    "Requires the optional GATOM plotting stack; test-gatom.R writes",
+    "gatom's example module and asserts the invisible path."
   ),
   gatom_save_html = paste(
     "Requires optional GATOM plus a working pandoc executable; its focused",

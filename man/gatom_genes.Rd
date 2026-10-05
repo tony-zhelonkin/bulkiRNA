@@ -7,16 +7,16 @@
 gatom_genes(m)
 }
 \arguments{
-\item{m}{A module \code{igraph} from \code{\link[=gatom_module]{gatom_module()}}.}
+\item{m}{A module from \code{\link[=gatom_module]{gatom_module()}} or \code{\link[=gatom_solve]{gatom_solve()}}.}
 }
 \value{
 A character vector of unique gene symbols, in edge order.
 }
 \description{
-In an atom-topology graph the vertices are metabolite atoms and the
-\strong{edges} are enzyme-catalysed reactions, so the gene labels live on the
-edges. Reading \code{igraph::V(m)$Symbol} returns \code{NULL} and looks like an empty
-result; this function reads the edges.
+The genes live on the graph's \strong{edges} -- enzyme-catalysed reactions --
+in both topologies, so \code{igraph::V(m)$Symbol} returns \code{NULL} and looks like
+an empty result. This reads the edge \code{label}, which gatom fills with the
+annotation's gene symbol whatever id type the DE table used.
 }
 \examples{
 \dontrun{

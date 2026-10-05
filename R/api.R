@@ -97,6 +97,13 @@ bulkirna_api <- function(lifecycle = "all", quiet = FALSE) {
   experimental <- list(
     gsdb = "gsdb_coresh",
     gs = "gs_coregulation",
+    # The three gatom calls as layers, the solver, and pathway annotation.
+    gatom = c(
+      "gatom_graph", "gatom_pathways", "gatom_score", "gatom_solve",
+      "gatom_solver",
+      # The vignette's seeded PDF layout.
+      "gatom_save_pdf"
+    ),
     # All dataset-level CoReSh APIs share the (gse, gpl) composite key.
     coresh = c(
       "coresh_chunks", "coresh_convergence", "coresh_labels",

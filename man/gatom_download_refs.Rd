@@ -16,8 +16,8 @@ gatom_download_refs(
 
 \item{species}{Character(1) human or mouse species alias.}
 
-\item{networks}{Character vector of networks to fetch, e.g.
-\code{c("kegg", "combined")}.}
+\item{networks}{Character vector of networks to fetch: any of \code{"kegg"},
+\code{"rhea"}, \code{"combined"}, \code{"lipids"}.}
 
 \item{overwrite}{Logical(1); re-download files that already exist.}
 }
@@ -29,12 +29,17 @@ invisibly.
 GATOM's atom-transition metabolic networks are too large to bundle
 (~24 MB), so they are fetched on demand from the Artyomov Lab server. This
 is a downloader, not a gene-set provider: the files it writes are consumed
-by GATOM itself, and it does not return a \code{\link[=gs_db]{gs_db()}}.
+by GATOM itself through \code{\link[=gatom_refs]{gatom_refs()}}, and it does not return a \code{\link[=gs_db]{gs_db()}}.
 }
 \details{
-Files already present are skipped unless \code{overwrite = TRUE}. A file that
-fails to download warns and is left out of the return value, so a partial
-run is visible rather than silent.
+Each network fetches its network file, its metabolite database and, for
+Rhea, combined and lipids, its \code{gene2reaction} supplement; the species
+annotation is fetched once. Files already present are skipped unless
+\code{overwrite = TRUE}. A file that fails to download warns and is left out of
+the return value, so a partial run is visible rather than silent.
+
+The directory's \code{SHA256SUMS} is rewritten to cover every file present in
+it, so \code{\link[=gatom_refs]{gatom_refs()}} can verify what it loads later.
 }
 \examples{
 \dontrun{

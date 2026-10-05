@@ -98,11 +98,11 @@ test_that("every stop call suppresses calls and names an argument or reason", {
       "Rejects a malformed third-party GESECA result and reports the dataset",
       "identity and observed result shape."
     ),
-    "gatom-download.R:gatom_download_refs#2" = paste(
+    "gatom-download.R:gatom_download_refs#1" = paste(
       "This caught transfer failure becomes a warning naming the downloaded",
       "file; no caller argument is invalid."
     ),
-    "gatom-download.R:gatom_download_refs#3" = paste(
+    "gatom-download.R:gatom_download_refs#2" = paste(
       "This caught filesystem failure becomes a warning naming the target",
       "file; no caller argument is invalid."
     ),

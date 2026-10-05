@@ -187,6 +187,9 @@ test_that("every declared stochastic function is classified and reproducible", {
   # Functions it cannot, each with the reason and where they are covered.
   covered_elsewhere <- c(
     gatom_module  = "needs gatom and mwcsr; covered in test-gatom.R",
+    gatom_save_pdf = "needs gatom and its plotting stack; covered in test-gatom.R",
+    gatom_score   = "needs gatom and mwcsr; covered in test-gatom.R",
+    gatom_solve   = "needs gatom and mwcsr; covered in test-gatom.R",
     coresh_search = "needs a chunk tree; covered by the mocked tests above",
     gsdb_coresh = paste(
       "needs a chunk tree; composition and RNG state are covered in",

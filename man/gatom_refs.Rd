@@ -2,11 +2,11 @@
 % Please edit documentation in R/gatom.R
 \name{gatom_refs}
 \alias{gatom_refs}
-\title{Locate the GATOM reference files}
+\title{Load the GATOM reference files}
 \usage{
 gatom_refs(
   species = "Homo sapiens",
-  dir = NULL,
+  dir = "00_data/references/gatom",
   download = FALSE,
   network = "kegg"
 )
@@ -14,38 +14,37 @@ gatom_refs(
 \arguments{
 \item{species}{Character(1) human or mouse species alias.}
 
-\item{dir}{Character(1) directory to search first, or \code{NULL}.}
+\item{dir}{Character(1) directory holding the reference files.}
 
-\item{download}{Logical(1); if \code{TRUE}, missing files are fetched with
-\code{\link[=gatom_download_refs]{gatom_download_refs()}} into \code{dir} (default
-\code{"00_data/references/gatom"}) before resolving.}
+\item{download}{Deprecated. Call \code{\link[=gatom_download_refs]{gatom_download_refs()}} first instead.}
 
-\item{network}{Character(1) network flavour, either \code{"kegg"} or
-\code{"combined"}.}
+\item{network}{Character(1) network: \code{"kegg"}, \code{"rhea"}, \code{"combined"}
+(KEGG + Rhea + BiGG transport) or \code{"lipids"} (the Rhea lipid
+subnetwork).}
 }
 \value{
 An object of class \code{gatom_refs}: a list with \code{network}, \code{met_db},
-\code{org_anno}, \code{species} and \code{files}.
+\code{org_anno}, \code{gene2reaction_extra} (\code{NULL} for KEGG), \code{species},
+\code{network_name}, \code{files} (paths), \code{sha256} and \code{checksums} (\code{"verified"}
+or \code{"no SHA256SUMS"}).
 }
 \description{
-GATOM needs three files: an atom-transition network, a metabolite database
-and a species-specific organism annotation. They are too large to bundle,
-so they are resolved from disk. Search order is an explicit \code{dir} first,
-then the staged container path \verb{/opt/gatom-refs}, then
-\code{\link[=gatom_download_refs]{gatom_download_refs()}}'s default \code{dir}
-(\code{"00_data/references/gatom"}) -- note that the staged copy therefore wins
-over that default. With \code{download = TRUE} the download destination is
-searched first, so a fresh fetch is never shadowed by the staged copy.
+GATOM needs a network, its metabolite database, a species annotation and,
+for the Rhea, combined and lipid networks, a supplementary gene-to-reaction
+table. They are read from one directory, \code{dir}, under the file names
+\code{\link[=gatom_download_refs]{gatom_download_refs()}} writes. When \code{dir} holds a \code{SHA256SUMS}, each file
+is verified against it.
 }
 \details{
-The returned object carries \code{met.db} alongside the network. That is
-deliberate: \code{gatom::makeMetabolicGraph()} needs \code{met.db} even when
-\code{met.de = NULL}, and omitting it breaks topology loading silently.
+The returned object carries \code{met.db} alongside the network, because
+\code{gatom::makeMetabolicGraph()} needs \code{met.db} even when \code{met.de = NULL}, and
+the \code{gene2reaction} table, because the vignette passes it with every
+network that has one.
 }
 \examples{
 \dontrun{
-refs <- gatom_refs("Homo sapiens")
-refs <- gatom_refs("Mus musculus", dir = "00_data/references/gatom",
-                   download = TRUE)
+gatom_download_refs(dir = "00_data/references/gatom",
+                    species = "Mus musculus", networks = "combined")
+refs <- gatom_refs("Mus musculus", network = "combined")
 }
 }
