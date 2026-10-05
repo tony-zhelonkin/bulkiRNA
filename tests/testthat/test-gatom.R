@@ -720,3 +720,20 @@ test_that("gatom_save_html() writes a self-contained file and makes its dir", {
   # The pandoc location is scoped to the call.
   expect_identical(Sys.getenv("RSTUDIO_PANDOC", unset = NA), pandoc_before)
 })
+
+test_that("gatom_save_pdf() writes the vignette's seeded layout", {
+  ex <- gatom_example_refs()
+  m <- quiet_gatom(gatom_module(ex$de, ex$refs, k_gene = 25))
+  out <- file.path(withr::local_tempdir(), "nested", "module.pdf")
+  set.seed(7)
+  before <- .Random.seed
+  # ggplot2 drops the unlabelled points of gatom's own layout with a warning.
+  expect_invisible(suppressWarnings(gatom_save_pdf(m, out, name = "Example")))
+  expect_identical(.Random.seed, before)
+  expect_identical(readBin(out, "raw", 4L), charToRaw("%PDF"))
+
+  expect_error(gatom_save_pdf(m, out, n_iter = 0), "`n_iter` must be")
+  expect_error(gatom_save_pdf(m, out, force = -1), "`force` must be")
+  expect_error(gatom_save_pdf(data.frame(a = 1), out),
+               "must be an igraph module")
+})

@@ -8,17 +8,22 @@
 .bulkirna_stochastic_registry <- function() {
   data.frame(
     name = c(
-      "coresh_match", "coresh_search", "gatom_module", "gatom_score",
-      "gatom_solve", "gs_coregulation", "gs_test", "gsdb_coresh"
+      "coresh_match", "coresh_search", "gatom_module", "gatom_save_pdf",
+      "gatom_score", "gatom_solve", "gs_coregulation", "gs_test",
+      "gsdb_coresh"
     ),
     seed_arg = c(
-      "seed", "seed", "seed", "seed", "seed", "seed", NA_character_, "seed"
+      "seed", "seed", "seed", "seed", "seed", "seed", "seed", NA_character_,
+      "seed"
     ),
-    seed_default = c("1L", "1L", "42", "42", "42", "123L", "123L", "1L"),
+    seed_default = c(
+      "1L", "1L", "42", "42", "42", "42", "123L", "123L", "1L"
+    ),
     source_of_randomness = c(
       "GESECA multilevel permutations",
       "GESECA multilevel permutations",
       "BioNet BUM fit and the MWCS solver heuristic",
+      "the repelled label layout",
       "BioNet BUM fit (random starts)",
       "the MWCS solver heuristic",
       "GESECA multilevel permutations",
@@ -29,6 +34,7 @@
       "upstream's reference implementation passes the literal value 1L",
       "upstream's reference implementation passes the literal value 1L",
       "the historical default is retained to preserve published results",
+      "the GATOM vignette's set.seed(42) before saveModuleToPdf()",
       "the GATOM vignette's set.seed(42), applied to the BUM fit as well",
       "the GATOM vignette's set.seed(42) before solve_mwcsp()",
       paste0(

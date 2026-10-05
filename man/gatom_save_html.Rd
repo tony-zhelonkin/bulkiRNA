@@ -22,8 +22,7 @@ self-contained file, and Quarto's bundled pandoc is not exported to child
 R sessions -- so when pandoc is not on the PATH and \code{RSTUDIO_PANDOC} is
 unset, this points \code{RSTUDIO_PANDOC} at a known location for the duration
 of the call, and fails with an actionable message when none is found. The
-parent directory is created if missing. This is the only \verb{gatom_*}
-function that writes to disk.
+parent directory is created if missing.
 }
 \examples{
 \dontrun{

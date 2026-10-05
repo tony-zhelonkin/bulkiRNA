@@ -53,7 +53,7 @@ return_audit_contract <- function() {
     return_audit_rows("gs_plot_running", "renderer", "patchwork"),
     return_audit_rows(
       c(
-        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gs_save",
+        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gatom_save_pdf", "gs_save",
         "gs_write", "write_session_provenance"
       ),
       "writer", "character"
@@ -146,6 +146,10 @@ return_audit_probe_exceptions <- c(
   gatom_solver = paste(
     "Requires optional mwcsr; test-gatom.R asserts the mwcs_solver object",
     "and the errors that refuse the approximate virgo mode."
+  ),
+  gatom_save_pdf = paste(
+    "Requires the optional GATOM plotting stack; test-gatom.R writes",
+    "gatom's example module and asserts the invisible path."
   ),
   gatom_save_html = paste(
     "Requires optional GATOM plus a working pandoc executable; its focused",

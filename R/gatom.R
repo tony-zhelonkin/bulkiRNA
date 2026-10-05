@@ -1035,8 +1035,7 @@ gatom_pathways <- function(m, refs, universe = attr(m, "graph_genes"),
 #' R sessions -- so when pandoc is not on the PATH and `RSTUDIO_PANDOC` is
 #' unset, this points `RSTUDIO_PANDOC` at a known location for the duration
 #' of the call, and fails with an actionable message when none is found. The
-#' parent directory is created if missing. This is the only `gatom_*`
-#' function that writes to disk.
+#' parent directory is created if missing.
 #'
 #' @param m A module `igraph` from [gatom_module()].
 #' @param path Character(1) output `.html` path.
@@ -1050,16 +1049,7 @@ gatom_pathways <- function(m, refs, universe = attr(m, "graph_genes"),
 gatom_save_html <- function(m, path, name = "") {
   .require_pkg("gatom", "gatom_save_html()", 'BiocManager::install("gatom")')
   .require_pkg("igraph", "gatom_save_html()")
-  if (!inherits(m, "igraph")) {
-    stop("`m` must be an igraph module from gatom_module(); got ",
-         class(m)[[1L]], ".", call. = FALSE)
-  }
-  if (!is.character(path) || length(path) != 1L || !nzchar(path)) {
-    stop("`path` must be a single non-empty file path.", call. = FALSE)
-  }
-  if (!is.character(name) || length(name) != 1L) {
-    stop("`name` must be a single string.", call. = FALSE)
-  }
+  .gatom_check_save(m, path, name)
 
   if (!nzchar(Sys.getenv("RSTUDIO_PANDOC")) &&
         !nzchar(Sys.which("pandoc"))) {
@@ -1079,8 +1069,61 @@ gatom_save_html <- function(m, path, name = "") {
     on.exit(Sys.unsetenv("RSTUDIO_PANDOC"), add = TRUE)
   }
 
+  gatom::saveModuleToHtml(m, path, name = name)
+  invisible(path)
+}
+
+.gatom_check_save <- function(m, path, name) {
+  if (!inherits(m, "igraph")) {
+    stop("`m` must be an igraph module from gatom_module(); got ",
+         class(m)[[1L]], ".", call. = FALSE)
+  }
+  if (!is.character(path) || length(path) != 1L || !nzchar(path)) {
+    stop("`path` must be a single non-empty file path.", call. = FALSE)
+  }
+  if (!is.character(name) || length(name) != 1L) {
+    stop("`name` must be a single string.", call. = FALSE)
+  }
   parent <- dirname(path)
   if (nzchar(parent) && !identical(parent, ".")) ensure_dir(parent)
-  gatom::saveModuleToHtml(m, path, name = name)
+  invisible(NULL)
+}
+
+#' Save a GATOM module as a PDF with a repelled layout
+#'
+#' Wraps `gatom::saveModuleToPdf()` with the vignette's call: `n_iter = 100`,
+#' `force = 1e-5`, after `set.seed(42)`. The label layout is a stochastic
+#' repel, so `seed` fixes it. The vignette's advice: the larger the module,
+#' the softer the `force`. The parent directory is created if missing.
+#'
+#' @param m A module `igraph` from [gatom_module()].
+#' @param path Character(1) output `.pdf` path.
+#' @param name Character(1) title printed on the page.
+#' @param n_iter Integer(1) iterations of the label-repel layout.
+#' @param force Numeric(1) repel force.
+#' @param seed Integer(1) seed for the layout.
+#' @return `path`, invisibly.
+#' @examples
+#' \dontrun{
+#' gatom_save_pdf(m, "03_results/module.pdf", name = "M0.vs.M1")
+#' }
+#' @export
+gatom_save_pdf <- function(m, path, name = "", n_iter = 100, force = 1e-5,
+                           seed = 42) {
+  .require_pkg("gatom", "gatom_save_pdf()", 'BiocManager::install("gatom")')
+  .require_pkg("igraph", "gatom_save_pdf()")
+  if (!is.numeric(n_iter) || length(n_iter) != 1L || is.na(n_iter) ||
+        n_iter < 1) {
+    stop("`n_iter` must be a single positive number.", call. = FALSE)
+  }
+  if (!is.numeric(force) || length(force) != 1L || is.na(force) ||
+        force <= 0) {
+    stop("`force` must be a single positive number.", call. = FALSE)
+  }
+  .gatom_check_seed(seed)
+  .gatom_check_save(m, path, name)
+  .with_pinned_seed(seed, gatom::saveModuleToPdf(
+    m, file = path, name = name, n_iter = n_iter, force = force
+  ))
   invisible(path)
 }

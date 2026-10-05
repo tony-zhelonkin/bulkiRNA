@@ -8,9 +8,10 @@ The wrapper is now gatom's three calls as three layers, each recording what it
 did on its result. `gatom_module()` runs them in order, as before.
 
 * New, experimental: `gatom_graph()` (`makeMetabolicGraph()`), `gatom_score()`
-  (`scoreGraph()`), `gatom_solve()` (`solve_mwcsp()`), `gatom_solver()` and
-  `gatom_pathways()`. `bulkirna_api()` has 69 rows; `bulkirna_stochastic()`
-  adds `gatom_score()` and `gatom_solve()`, both seeded at 42.
+  (`scoreGraph()`), `gatom_solve()` (`solve_mwcsp()`), `gatom_solver()`,
+  `gatom_pathways()` and `gatom_save_pdf()`. `bulkirna_api()` has 70 rows; `bulkirna_stochastic()`
+  adds `gatom_score()`, `gatom_solve()` and `gatom_save_pdf()`, all seeded at
+  42.
 
 * `gatom_graph()` reports gatom's `gene.keep.top` cut-off: genes in the table,
   genes kept, genes in the graph. On KathleenM's 15,462-gene tables it keeps
@@ -34,6 +35,14 @@ did on its result. `gatom_module()` runs them in order, as before.
 * `gatom_pathways()` is the vignette's annotation: `fgsea::fora()` on the
   annotation's KEGG and Reactome pathways with the graph's genes as universe,
   then `collapsePathwaysORA()` on `padj < 0.05`.
+
+* `gatom_save_pdf()` is the vignette's PDF export: `saveModuleToPdf()` with
+  `n_iter = 100, force = 1e-5` under seed 42. The label layout is random, so
+  the seed fixes it; the caller's random stream is untouched. The vignette's
+  other module steps need no wrapper and are called directly:
+  `igraph::write_graph(m, path, "graphml")`, `gatom::saveModuleToDot()` and,
+  for lipid modules, `gatom::abbreviateLabels()`, which keeps the module's
+  recorded attributes.
 
 * `gatom_refs()` reads one directory, `dir`, defaulting to
   `00_data/references/gatom`. The search through `/opt/gatom-refs` is gone. It
