@@ -1,6 +1,12 @@
 # bulkiRNA (development version)
 
-Nothing yet. `1.3.0.9000` names the next release.
+`1.3.0.9000` names the next release.
+
+## Documentation
+
+* `gatom_solve()` documents that virgo can return a different module among
+  tied optima on each call, whatever the seed: the weight and genes hold, the
+  route through unscored metabolites can change.
 
 # bulkiRNA 1.2.0
 

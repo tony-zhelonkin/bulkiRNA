@@ -781,6 +781,14 @@ gatom_solver <- function(type = c("rnc", "virgo"),
 #' `set.seed(42)`, and returns the module with everything that produced it
 #' recorded on it.
 #'
+#' `seed` fixes R-side randomness, which is all `"rnc"` uses. Virgo runs in
+#' Java and CPLEX, outside R's generator: it always returns an optimum, but
+#' where several subgraphs tie it can return a different one on each call.
+#' On a KathleenM module, five solves gave the same weight, the same 50 genes
+#' and the same 56 reactions, with 50 or 51 metabolites as the route through
+#' unscored metabolites changed. Compare virgo modules by
+#' `solution_weight` and genes, not by their exact node and edge sets.
+#'
 #' @param gs A scored graph from [gatom_score()].
 #' @param solver `"rnc"`, `"virgo"`, or an `mwcs_solver` object -- from
 #'   [gatom_solver()] or built directly with mwcsr.
