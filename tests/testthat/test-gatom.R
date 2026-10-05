@@ -737,3 +737,22 @@ test_that("gatom_save_pdf() writes the vignette's seeded layout", {
   expect_error(gatom_save_pdf(data.frame(a = 1), out),
                "must be an igraph module")
 })
+
+test_that("a failed gatom_save_pdf() closes gatom's device and its file", {
+  skip_if_not_installed("gatom")
+  skip_if_not_installed("igraph")
+  # gatom opens the PDF device first and fails while drawing.
+  local_mocked_bindings(
+    saveModuleToPdf = function(module, file, name, n_iter, force) {
+      grDevices::pdf(file)
+      stop("missing value where TRUE/FALSE needed")
+    },
+    .package = "gatom"
+  )
+  m <- igraph::make_graph(~ a - b)
+  out <- file.path(withr::local_tempdir(), "module.pdf")
+  devices <- grDevices::dev.list()
+  expect_error(gatom_save_pdf(m, out), "could not draw `m`: missing value")
+  expect_identical(grDevices::dev.list(), devices)
+  expect_false(file.exists(out))
+})

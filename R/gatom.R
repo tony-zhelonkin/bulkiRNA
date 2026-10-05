@@ -1096,6 +1096,11 @@ gatom_save_html <- function(m, path, name = "") {
 #' repel, so `seed` fixes it. The vignette's advice: the larger the module,
 #' the softer the `force`. The parent directory is created if missing.
 #'
+#' gatom's layout can place every node on one line, and the drawing then
+#' fails. This is common in modules of a few nodes and depends on the seed.
+#' The function then stops, closes the devices gatom left open and removes
+#' the partial file, so a failed call leaves no state behind.
+#'
 #' @param m A module `igraph` from [gatom_module()].
 #' @param path Character(1) output `.pdf` path.
 #' @param name Character(1) title printed on the page.
@@ -1122,8 +1127,25 @@ gatom_save_pdf <- function(m, path, name = "", n_iter = 100, force = 1e-5,
   }
   .gatom_check_seed(seed)
   .gatom_check_save(m, path, name)
-  .with_pinned_seed(seed, gatom::saveModuleToPdf(
-    m, file = path, name = name, n_iter = n_iter, force = force
-  ))
+  # saveModuleToPdf() opens its devices before it can fail, and leaves them
+  # open when it does. Close whatever it opened and drop the partial file.
+  devices <- grDevices::dev.list()
+  on.exit({
+    for (d in setdiff(grDevices::dev.list(), devices)) grDevices::dev.off(d)
+  }, add = TRUE)
+  tryCatch(
+    .with_pinned_seed(seed, gatom::saveModuleToPdf(
+      m, file = path, name = name, n_iter = n_iter, force = force
+    )),
+    error = function(e) {
+      for (d in setdiff(grDevices::dev.list(), devices)) grDevices::dev.off(d)
+      unlink(path)
+      stop("gatom::saveModuleToPdf() could not draw `m`: ",
+           conditionMessage(e), ". Its label layout can put every node on ",
+           "one line, most often in small modules; another `seed`, `force` ",
+           "or `n_iter` may avoid it, or use gatom_save_html().",
+           call. = FALSE)
+    }
+  )
   invisible(path)
 }

@@ -38,7 +38,10 @@ did on its result. `gatom_module()` runs them in order, as before.
 
 * `gatom_save_pdf()` is the vignette's PDF export: `saveModuleToPdf()` with
   `n_iter = 100, force = 1e-5` under seed 42. The label layout is random, so
-  the seed fixes it; the caller's random stream is untouched. The vignette's
+  the seed fixes it; the caller's random stream is untouched. gatom's layout
+  can put every node on one line, and the drawing then fails: on KathleenM,
+  4 of 18 modules at seed 42. A failed call stops with that cause, closes the
+  devices gatom left open and removes the partial file. The vignette's
   other module steps need no wrapper and are called directly:
   `igraph::write_graph(m, path, "graphml")`, `gatom::saveModuleToDot()` and,
   for lipid modules, `gatom::abbreviateLabels()`, which keeps the module's

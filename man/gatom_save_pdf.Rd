@@ -28,6 +28,12 @@ Wraps \code{gatom::saveModuleToPdf()} with the vignette's call: \code{n_iter = 1
 repel, so \code{seed} fixes it. The vignette's advice: the larger the module,
 the softer the \code{force}. The parent directory is created if missing.
 }
+\details{
+gatom's layout can place every node on one line, and the drawing then
+fails. This is common in modules of a few nodes and depends on the seed.
+The function then stops, closes the devices gatom left open and removes
+the partial file, so a failed call leaves no state behind.
+}
 \examples{
 \dontrun{
 gatom_save_pdf(m, "03_results/module.pdf", name = "M0.vs.M1")
