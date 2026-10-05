@@ -2,6 +2,69 @@
 
 `1.2.0.9000` names the next release.
 
+## GATOM
+
+The wrapper is now gatom's three calls as three layers, each recording what it
+did on its result. `gatom_module()` runs them in order, as before.
+
+* New, experimental: `gatom_graph()` (`makeMetabolicGraph()`), `gatom_score()`
+  (`scoreGraph()`), `gatom_solve()` (`solve_mwcsp()`), `gatom_solver()` and
+  `gatom_pathways()`. `bulkirna_api()` has 69 rows; `bulkirna_stochastic()`
+  adds `gatom_score()` and `gatom_solve()`, both seeded at 42.
+
+* `gatom_graph()` reports gatom's `gene.keep.top` cut-off: genes in the table,
+  genes kept, genes in the graph. On KathleenM's 15,462-gene tables it keeps
+  12,000 before mapping. The cut-off stays at gatom's 12,000.
+
+* `gatom_score()` records the BUM fit that gatom only prints: threshold,
+  alpha and FDR for genes and metabolites. The threshold and alpha are exact,
+  recovered from the scores; gatom prints six decimals, so a threshold of
+  4e-8 used to read as 0.
+
+* A p-value distribution that does not fit a BUM is an error. gatom set every
+  score to 0 with a warning, and the solver then returned a module from
+  zero weights.
+
+* `gatom_solver("virgo")` builds the exact solver the GATOM authors recommend,
+  with the vignette's `threads = 4, penalty = 0.001`. It reads CPLEX from
+  `CPLEX_HOME` and stops when CPLEX is absent, where `mwcsr::virgo_solver()`
+  would fall back to an approximate mode. Modules record `solver`,
+  `solver_params`, `solution_weight` and `solved_to_optimality`.
+
+* `gatom_pathways()` is the vignette's annotation: `fgsea::fora()` on the
+  annotation's KEGG and Reactome pathways with the graph's genes as universe,
+  then `collapsePathwaysORA()` on `padj < 0.05`.
+
+* `gatom_refs()` reads one directory, `dir`, defaulting to
+  `00_data/references/gatom`. The search through `/opt/gatom-refs` is gone. It
+  loads the network's `gene2reaction` table, verifies files against
+  `SHA256SUMS` when present, and accepts `network = "rhea"` and `"lipids"`.
+  `gatom_download_refs()` writes `SHA256SUMS` and stops requesting
+  `gene2reaction.kegg.*.tsv`, which the server does not have.
+
+* `gatom_genes()` reads the edge `label`, gatom's gene symbol for every id
+  type. It read `Symbol`, which gatom creates only for symbol input, so
+  RefSeq, Entrez or Ensembl input failed. For symbol input the two agree: all
+  18 KathleenM modules give identical genes.
+
+* `gatom_de()` no longer warns about log-scale `baseMean`. gatom uses
+  `baseMean` only to rank genes for the cut-off, so any monotone scale gives
+  the same graph.
+
+* gatom detects the id type from a random sample of 1,000 rows. `gatom_graph()`
+  draws it under a fixed seed, so the graph depends only on its inputs and the
+  caller's random stream is untouched. `gatom_save_html()` restores
+  `RSTUDIO_PANDOC` after the call.
+
+* Results are unchanged. All 18 KathleenM modules (3 contrasts, KEGG and
+  combined, `k_gene` 25/50/75, `rnc`, seed 42) reproduce their recorded
+  metabolites, reactions, genes and solution weights.
+
+* Deprecated, removal in 2.0.0: `gatom_module(solver = "rmwcs")` and
+  `"annealing"`, which the authors do not use; `gatom_module(gene2reaction_extra
+  =)`, now part of the reference set; `gatom_refs(download = TRUE)`, replaced
+  by calling `gatom_download_refs()` first. Each warns and still works.
+
 ## Behaviour
 
 * `annotate_genes()` fills `Symbol` from `input_gene_name` where org.db and

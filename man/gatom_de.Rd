@@ -9,14 +9,14 @@ gatom_de(x, id, pval, log2FC, baseMean)
 \arguments{
 \item{x}{A data frame of differential-expression results.}
 
-\item{id}{Gene identifier column -- symbols, Entrez or RefSeq, matching the
-annotation's \code{mapFrom}.}
+\item{id}{Gene identifier column -- symbols, Entrez, Ensembl or RefSeq,
+matching one of the annotation's \code{mapFrom} types.}
 
 \item{pval}{\strong{Raw} p-value column.}
 
 \item{log2FC}{Effect-size column.}
 
-\item{baseMean}{Linear-scale mean expression (e.g. \code{2^AveExpr}), or a
+\item{baseMean}{Mean-expression column on any monotone scale, or a
 constant placeholder.}
 }
 \value{
@@ -26,19 +26,19 @@ A data frame of class \code{gatom_de} with columns \code{ID}, \code{pval},
 \description{
 Assembles the four columns \code{gatom::makeMetabolicGraph()} needs -- \code{ID},
 \code{pval}, \code{log2FC}, \code{baseMean} -- sorted by p-value and deduplicated on \code{ID}
-(lowest p-value wins), and validates the two inputs that fail silently:
+(lowest p-value wins).
 }
 \details{
-\itemize{
-\item \strong{\code{pval} must be raw.} A column whose \emph{name} looks adjusted
-(\code{adj}, \code{fdr}, \code{padj}, \code{qval}/\code{q.val}) is an error, as is any value
-outside \verb{[0, 1]}, as is an all-\code{NA} column. GATOM's BUM model is fitted
-to a raw p-value distribution; FDR values fit it to nonsense without
-complaining.
-\item \strong{\code{baseMean} must be linear.} Negative values, or a maximum below 30,
-are the signature of a log-scale column (use \code{2^AveExpr} from limma) and
-raise a warning.
-}
+\strong{\code{pval} must be raw.} A column whose \emph{name} looks adjusted (\code{adj}, \code{fdr},
+\code{padj}, \code{qval}/\code{q.val}) is an error, as is any value outside \verb{[0, 1]}, as
+is an all-\code{NA} column. GATOM's BUM model is fitted to a raw p-value
+distribution; FDR values fit it to nonsense without complaining.
+
+\strong{\code{baseMean} is used only as a rank.} gatom keeps the 12,000 genes with
+the highest \code{baseMean} and drops the rest, so any monotone expression
+measure gives the same graph: \code{AveExpr}, \code{2^AveExpr} and DESeq2's
+\code{baseMean} are interchangeable. \code{\link[=gatom_graph]{gatom_graph()}} reports how many genes the
+cut-off removed.
 
 Arguments are evaluated inside \code{x}, so bare column names, expressions
 (\code{2^AveExpr}) and constants (\code{1}) all work.
@@ -49,5 +49,5 @@ tt <- data.frame(symbol = c("IDO1", "KMO", "KYNU"),
                  logFC = c(2.1, -1.4, 0.8),
                  AveExpr = c(8, 7, 6))
 gatom_de(tt, id = symbol, pval = P.Value, log2FC = logFC,
-         baseMean = 2^AveExpr)
+         baseMean = AveExpr)
 }

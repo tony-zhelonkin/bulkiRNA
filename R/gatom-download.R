@@ -1,18 +1,78 @@
+#' GATOM reference file names, by network
+#'
+#' The one table of upstream file names, taken from the index at
+#' `artyomovlab.wustl.edu/publications/supp_materials/GATOM/`. Both
+#' [gatom_download_refs()] and [gatom_refs()] read it, so the downloader and
+#' the loader cannot disagree about a name. The vignette's prose names the
+#' lipid metabolite file `met.rhea.lipids.db.rds`; the server serves
+#' `met.lipids.db.rds`, which is also what the vignette's code reads.
+#'
+#' @param network Character(1), one of `"kegg"`, `"rhea"`, `"combined"`,
+#'   `"lipids"`.
+#' @param species A species record from `.species()`.
+#' @return A named character vector: `network`, `met_db`, `org_anno` and,
+#'   for every network except KEGG, `gene2reaction_extra`.
+#' @keywords internal
+.gatom_ref_files <- function(network, species) {
+  files <- switch(
+    network,
+    kegg = c(network = "network.kegg.rds", met_db = "met.kegg.db.rds"),
+    rhea = c(network = "network.rhea.rds", met_db = "met.rhea.db.rds",
+             gene2reaction_extra = "gene2reaction.rhea.%s.eg.tsv"),
+    combined = c(network = "network.combined.rds",
+                 met_db = "met.combined.db.rds",
+                 gene2reaction_extra = "gene2reaction.combined.%s.eg.tsv"),
+    lipids = c(network = "network.rhea.lipids.rds",
+               met_db = "met.lipids.db.rds",
+               gene2reaction_extra = "gene2reaction.rhea.%s.eg.tsv")
+  )
+  if (is.null(files)) {
+    stop("`network` must be one of ",
+         paste0("\"", .gatom_networks, "\"", collapse = ", "), "; got \"",
+         network, "\".", call. = FALSE)
+  }
+  if ("gene2reaction_extra" %in% names(files)) {
+    files[["gene2reaction_extra"]] <- sprintf(files[["gene2reaction_extra"]],
+                                              species$code)
+  }
+  c(files, org_anno = sprintf("org.%s.eg.gatom.anno.rds",
+                              species$gatom_short))
+}
+
+.gatom_networks <- c("kegg", "rhea", "combined", "lipids")
+
+.gatom_check_network <- function(network, arg = "network", several = FALSE) {
+  ok <- is.character(network) && length(network) >= 1L && !anyNA(network) &&
+    (several || length(network) == 1L) && all(network %in% .gatom_networks)
+  if (!ok) {
+    stop("`", arg, "` must be ", if (several) "a subset of " else "one of ",
+         paste0("\"", .gatom_networks, "\"", collapse = ", "), "; got ",
+         paste0("\"", paste(network, collapse = "\", \""), "\""), ".",
+         call. = FALSE)
+  }
+  invisible(network)
+}
+
 #' Download GATOM reference network files
 #'
 #' GATOM's atom-transition metabolic networks are too large to bundle
 #' (~24 MB), so they are fetched on demand from the Artyomov Lab server. This
 #' is a downloader, not a gene-set provider: the files it writes are consumed
-#' by GATOM itself, and it does not return a [gs_db()].
+#' by GATOM itself through [gatom_refs()], and it does not return a [gs_db()].
 #'
-#' Files already present are skipped unless `overwrite = TRUE`. A file that
-#' fails to download warns and is left out of the return value, so a partial
-#' run is visible rather than silent.
+#' Each network fetches its network file, its metabolite database and, for
+#' Rhea, combined and lipids, its `gene2reaction` supplement; the species
+#' annotation is fetched once. Files already present are skipped unless
+#' `overwrite = TRUE`. A file that fails to download warns and is left out of
+#' the return value, so a partial run is visible rather than silent.
+#'
+#' The directory's `SHA256SUMS` is rewritten to cover every file present in
+#' it, so [gatom_refs()] can verify what it loads later.
 #'
 #' @param dir Character(1) destination directory; created if missing.
 #' @param species Character(1) human or mouse species alias.
-#' @param networks Character vector of networks to fetch, e.g.
-#'   `c("kegg", "combined")`.
+#' @param networks Character vector of networks to fetch: any of `"kegg"`,
+#'   `"rhea"`, `"combined"`, `"lipids"`.
 #' @param overwrite Logical(1); re-download files that already exist.
 #' @return Character vector of downloaded (or already present) file paths,
 #'   invisibly.
@@ -31,20 +91,11 @@ gatom_download_refs <- function(
     "http://artyomovlab.wustl.edu/publications/supp_materials/GATOM"
 
   sp <- .species(species)
-  if (!is.character(networks) || !length(networks) || anyNA(networks) ||
-        any(!nzchar(networks))) {
-    stop("`networks` must be a non-empty character vector, e.g. ",
-         "c(\"kegg\", \"combined\").", call. = FALSE)
-  }
+  .gatom_check_network(networks, "networks", several = TRUE)
 
-  files <- unique(c(
-    unlist(lapply(networks, function(net) {
-      c(sprintf("network.%s.rds", net),
-        sprintf("met.%s.db.rds", net),
-        sprintf("gene2reaction.%s.%s.eg.tsv", net, sp$code))
-    })),
-    sprintf("org.%s.eg.gatom.anno.rds", sp$gatom_short)
-  ))
+  files <- unique(unlist(lapply(networks, function(net) {
+    unname(.gatom_ref_files(net, sp))
+  })))
 
   ensure_dir(dir)
 
@@ -93,9 +144,47 @@ gatom_download_refs <- function(
     }
   }
 
+  .gatom_write_sums(dir)
   message(sprintf("Downloaded %d / %d files to: %s",
                   length(downloaded), length(files), dir))
   invisible(downloaded)
+}
+
+#' Write `SHA256SUMS` for a GATOM reference directory
+#'
+#' Covers every reference file in `dir`, in the format `sha256sum -c` reads.
+#'
+#' @param dir Character(1) reference directory.
+#' @return The path to `SHA256SUMS`, invisibly; `NA` when nothing was
+#'   written.
+#' @keywords internal
+.gatom_write_sums <- function(dir) {
+  present <- list.files(dir, pattern = "\\.(rds|tsv)$")
+  if (!length(present)) return(invisible(NA_character_))
+  sums <- .gatom_sha256(file.path(dir, present))
+  if (anyNA(sums)) {
+    message("  SHA256SUMS not written: tools::sha256sum() needs R >= 4.5.")
+    return(invisible(NA_character_))
+  }
+  path <- file.path(dir, "SHA256SUMS")
+  writeLines(paste0(unname(sums), "  ", present), path)
+  invisible(path)
+}
+
+#' SHA-256 of files, where this R can compute it
+#'
+#' `tools::sha256sum()` arrived in R 4.5.0 and the package supports R 4.2.
+#'
+#' @param paths Character vector of file paths.
+#' @return A character vector of hashes named by path, `NA` throughout on
+#'   R < 4.5.
+#' @keywords internal
+.gatom_sha256 <- function(paths) {
+  tools_ns <- asNamespace("tools")
+  if (!exists("sha256sum", envir = tools_ns, inherits = FALSE)) {
+    return(stats::setNames(rep(NA_character_, length(paths)), paths))
+  }
+  get("sha256sum", envir = tools_ns)(paths)
 }
 
 #' Deprecated GATOM reference downloader name

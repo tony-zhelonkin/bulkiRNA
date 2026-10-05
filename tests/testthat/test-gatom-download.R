@@ -71,17 +71,47 @@ test_that("an unsupported species fails before anything is written", {
   expect_false(dir.exists(dest))
 })
 
-test_that("networks must be a non-empty character vector", {
+test_that("networks must be among the four the server provides", {
   dest <- file.path(tempdir(), "gatom-badnetworks")
-  expect_error(
-    gatom_download_refs(dir = dest, networks = character()),
-    "`networks` must be a non-empty character vector"
-  )
-  expect_error(
-    gatom_download_refs(dir = dest, networks = NA_character_),
-    "`networks` must be a non-empty character vector"
-  )
+  for (bad in list(character(), NA_character_, "reactome")) {
+    expect_error(
+      gatom_download_refs(dir = dest, networks = bad),
+      "`networks` must be a subset of \"kegg\", \"rhea\", \"combined\", \"lipids\"",
+      fixed = TRUE
+    )
+  }
   expect_false(dir.exists(dest))
+})
+
+test_that("the downloader fetches the table's files and writes SHA256SUMS", {
+  # It used to request gene2reaction.kegg.*.tsv, which the server does not
+  # have, so every KEGG download ended in a [FAIL] warning.
+  dest <- withr::local_tempdir()
+  requested <- character()
+  testthat::local_mocked_bindings(
+    download.file = function(url, destfile, ...) {
+      requested <<- c(requested, basename(url))
+      writeLines(basename(url), destfile)
+      0L
+    },
+    .package = "utils"
+  )
+  expect_no_warning(suppressMessages(
+    gatom_download_refs(dir = dest, species = "Mus musculus",
+                        networks = c("kegg", "lipids"))
+  ))
+  expect_setequal(requested, c(
+    "network.kegg.rds", "met.kegg.db.rds", "network.rhea.lipids.rds",
+    "met.lipids.db.rds", "gene2reaction.rhea.mmu.eg.tsv",
+    "org.Mm.eg.gatom.anno.rds"
+  ))
+  skip_if_not(exists("sha256sum", asNamespace("tools")), "needs R >= 4.5")
+  sums <- readLines(file.path(dest, "SHA256SUMS"))
+  expect_length(sums, length(requested))
+  expect_identical(bulkiRNA:::.gatom_verify_sums(
+    dest, c(network = "network.kegg.rds"),
+    unname(tools::sha256sum(file.path(dest, "network.kegg.rds")))
+  ), "verified")
 })
 
 test_that("gsdb_load points GATOM users at the downloader", {
