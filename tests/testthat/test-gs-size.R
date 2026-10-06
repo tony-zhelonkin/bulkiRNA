@@ -29,6 +29,14 @@ test_that("gs_scale_fonts() distributes across a patchwork's panels", {
   expect_equal(scaled[[2]]$theme$text$size, 20, tolerance = 1e-9)
 })
 
+test_that("gs_scale_fonts() leaves the elements a plot blanks blank", {
+  p <- size_plot() + ggplot2::theme_void()
+  scaled <- gs_scale_fonts(p, width = 14, height = 10)
+  expect_s3_class(scaled$theme$axis.text, "element_blank")
+  expect_s3_class(scaled$theme$axis.title, "element_blank")
+  expect_gt(scaled$theme$legend.text$size, 8)
+})
+
 test_that("gs_scale_fonts() supersedes theme_bulki()'s 14 pt floor", {
   # The floor is deliberate for an unscaled theme, but once a canvas is known
   # the absolute size has to win, or a small figure carries oversized type.

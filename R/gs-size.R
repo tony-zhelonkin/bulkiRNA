@@ -38,13 +38,17 @@ gs_scale_fonts <- function(plot, width, height, base_font_size = 10) {
     }
   }
 
-  th <- .gs_font_theme(width, height, base_font_size)
   # `&` distributes a theme across a patchwork's panels; `+` would attach it to
   # the composition only and leave the panels at their original sizes.
   if (inherits(plot, "patchwork")) {
-    return(plot & th)
+    return(plot & .gs_font_theme(width, height, base_font_size))
   }
-  plot + th
+  # An element_text added onto an element_blank replaces it, so sizing every
+  # element would bring back the axes a theme_void() plot removed. Elements
+  # the plot blanks are left out.
+  blank <- names(Filter(function(el) inherits(el, "element_blank"),
+                        as.list(plot$theme)))
+  plot + .gs_font_theme(width, height, base_font_size, skip = blank)
 }
 
 #' The text-size theme for a canvas
@@ -54,12 +58,13 @@ gs_scale_fonts <- function(plot, width, height, base_font_size = 10) {
 #'
 #' @param width,height Canvas size in inches.
 #' @param base_font_size Reference point size.
+#' @param skip Names of theme elements to leave unset.
 #' @return A ggplot2 theme.
 #' @keywords internal
-.gs_font_theme <- function(width, height, base_font_size) {
+.gs_font_theme <- function(width, height, base_font_size, skip = character()) {
   scale_fac <- sqrt((width * height) / (7 * 5))
   size <- base_font_size * scale_fac
-  theme(
+  elements <- list(
     text = element_text(size = size),
     axis.title = element_text(size = size),
     axis.text = element_text(size = size * 0.9),
@@ -69,6 +74,7 @@ gs_scale_fonts <- function(plot, width, height, base_font_size = 10) {
     legend.text = element_text(size = size * 0.8),
     strip.text = element_text(size = size)
   )
+  do.call(theme, elements[setdiff(names(elements), skip)])
 }
 
 #' Suggested canvas size for a figure
