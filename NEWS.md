@@ -1,6 +1,4 @@
-# bulkiRNA (development version)
-
-`1.3.0.9000` names the next release.
+# bulkiRNA 1.3.0
 
 ## GATOM
 
