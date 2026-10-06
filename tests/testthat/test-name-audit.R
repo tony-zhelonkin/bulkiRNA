@@ -195,8 +195,8 @@ test_that("live export formals use the complete audited vocabulary", {
     ),
     single_use(
       c(
-        "cplex_dir", "force", "keep_reactions_without_enzymes", "n_iter",
-        "penalty", "threads", "timelimit", "topology"
+        "cplex_dir", "keep_reactions_without_enzymes", "penalty", "threads",
+        "timelimit", "topology"
       ),
       paste(
         "A gatom or mwcsr parameter in snake case, with the upstream meaning",

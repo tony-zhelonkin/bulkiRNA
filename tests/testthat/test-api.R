@@ -51,7 +51,8 @@ test_that("the API registry covers the complete namespace exactly once", {
   # 64 at 1.1.0: + bulki_palettes, gs_palette, gs_plot_size, gs_scale_fonts
   # (stable) and coresh_labels (experimental). 69 at 1.2.0: + gatom_graph,
   # gatom_pathways, gatom_score, gatom_solve, gatom_solver,
-  # gatom_save_pdf (experimental).
+  # gatom_save_pdf (experimental). 70 at 1.3.0: gatom_plot_module replaces
+  # gatom_save_pdf.
   expect_equal(nrow(api), 70L)
   expect_equal(anyDuplicated(api$name), 0L)
   expect_setequal(api$name, exports)
@@ -81,7 +82,7 @@ test_that("experimental status covers CoReSh, coregulation, GATOM layers and gen
     "gsdb_coresh", "entrez_to_gene", "filter_confounder_genes",
     "gene_to_entrez",
     # The GATOM layers are new at 1.2.0; gatom_module() above them is stable.
-    "gatom_graph", "gatom_pathways", "gatom_save_pdf", "gatom_score",
+    "gatom_graph", "gatom_pathways", "gatom_plot_module", "gatom_score",
     "gatom_solve", "gatom_solver"
   )
 

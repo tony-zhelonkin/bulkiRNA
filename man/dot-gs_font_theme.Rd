@@ -4,12 +4,14 @@
 \alias{.gs_font_theme}
 \title{The text-size theme for a canvas}
 \usage{
-.gs_font_theme(width, height, base_font_size)
+.gs_font_theme(width, height, base_font_size, skip = character())
 }
 \arguments{
 \item{width, height}{Canvas size in inches.}
 
 \item{base_font_size}{Reference point size.}
+
+\item{skip}{Names of theme elements to leave unset.}
 }
 \value{
 A ggplot2 theme.

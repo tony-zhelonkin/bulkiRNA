@@ -25,6 +25,15 @@ Calls \code{mwcsr::solve_mwcsp()} under \code{seed}, as the vignette does with
 \code{set.seed(42)}, and returns the module with everything that produced it
 recorded on it.
 }
+\details{
+\code{seed} fixes R-side randomness, which is all \code{"rnc"} uses. Virgo runs in
+Java and CPLEX, outside R's generator: it always returns an optimum, but
+where several subgraphs tie it can return a different one on each call.
+On a KathleenM module, five solves gave the same weight, the same 50 genes
+and the same 56 reactions, with 50 or 51 metabolites as the route through
+unscored metabolites changed. Compare virgo modules by
+\code{solution_weight} and genes, not by their exact node and edge sets.
+}
 \examples{
 \dontrun{
 m <- gatom_solve(gatom_score(gatom_graph(de, refs)), solver = "rnc")

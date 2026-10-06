@@ -721,38 +721,64 @@ test_that("gatom_save_html() writes a self-contained file and makes its dir", {
   expect_identical(Sys.getenv("RSTUDIO_PANDOC", unset = NA), pandoc_before)
 })
 
-test_that("gatom_save_pdf() writes the vignette's seeded layout", {
+test_that("gatom_plot_module() draws a seeded module with its edge table", {
+  skip_if_not_installed("ggraph")
   ex <- gatom_example_refs()
   m <- quiet_gatom(gatom_module(ex$de, ex$refs, k_gene = 25))
-  out <- file.path(withr::local_tempdir(), "nested", "module.pdf")
   set.seed(7)
   before <- .Random.seed
-  # ggplot2 drops the unlabelled points of gatom's own layout with a warning.
-  expect_invisible(suppressWarnings(gatom_save_pdf(m, out, name = "Example")))
-  expect_identical(.Random.seed, before)
-  expect_identical(readBin(out, "raw", 4L), charToRaw("%PDF"))
+  p <- gatom_plot_module(m)
+  expect_s3_class(p, "ggplot")
+  src <- attr(p, "gs_source")
+  expect_equal(nrow(src), igraph::ecount(m))
+  expect_identical(src$gene, igraph::E(m)$label)
+  expect_identical(src$log2FC, igraph::E(m)$log2FC)
+  expect_match(p$labels$caption, "No metabolite data")
 
-  expect_error(gatom_save_pdf(m, out, n_iter = 0), "`n_iter` must be")
-  expect_error(gatom_save_pdf(m, out, force = -1), "`force` must be")
-  expect_error(gatom_save_pdf(data.frame(a = 1), out),
-               "must be an igraph module")
+  # Drawing runs the label repel; neither it nor the layout moves the stream.
+  grDevices::pdf(NULL)
+  print(p)
+  grDevices::dev.off()
+  expect_identical(.Random.seed, before)
+
+  node_xy <- function(p) {
+    d <- ggplot2::ggplot_build(p)$data
+    d[[which(vapply(d, function(x) "shape" %in% names(x), NA))[[1L]]]][
+      c("x", "y")]
+  }
+  expect_identical(node_xy(gatom_plot_module(m)), node_xy(p))
+  expect_false(identical(node_xy(gatom_plot_module(m, seed = 1)), node_xy(p)))
+
+  # Colour limits are symmetric, so zero sits on the mid colour, and come from
+  # the finite fold changes: gatom's example carries an infinite one.
+  fc <- igraph::E(m)$log2FC
+  expect_true(any(is.infinite(fc)))
+  lim <- max(abs(fc[is.finite(fc)]))
+  sc <- p$scales$get_scales("edge_colour")
+  expect_equal(sc$get_limits(), c(-lim, lim))
 })
 
-test_that("a failed gatom_save_pdf() closes gatom's device and its file", {
-  skip_if_not_installed("gatom")
+test_that("gatom_plot_module() fills nodes when the module has metabolite data", {
+  skip_if_not_installed("ggraph")
+  ex <- gatom_example_refs()
+  m <- quiet_gatom(gatom_module(ex$de, ex$refs, k_gene = 25))
+  igraph::V(m)$log2FC <- seq_len(igraph::vcount(m)) - 2
+  p <- gatom_plot_module(m)
+  expect_false(is.null(p$scales$get_scales("fill")))
+  expect_false(grepl("No metabolite data", p$labels$caption))
+})
+
+test_that("gatom_plot_module() validates its input", {
+  skip_if_not_installed("ggraph")
   skip_if_not_installed("igraph")
-  # gatom opens the PDF device first and fails while drawing.
-  local_mocked_bindings(
-    saveModuleToPdf = function(module, file, name, n_iter, force) {
-      grDevices::pdf(file)
-      stop("missing value where TRUE/FALSE needed")
-    },
-    .package = "gatom"
-  )
   m <- igraph::make_graph(~ a - b)
-  out <- file.path(withr::local_tempdir(), "module.pdf")
-  devices <- grDevices::dev.list()
-  expect_error(gatom_save_pdf(m, out), "could not draw `m`: missing value")
-  expect_identical(grDevices::dev.list(), devices)
-  expect_false(file.exists(out))
+  expect_error(gatom_plot_module(data.frame(a = 1)), "must be an igraph module")
+  expect_error(gatom_plot_module(igraph::make_empty_graph(2)),
+               "has no edges")
+  expect_error(gatom_plot_module(m), "lacks the attributes .*label, log2FC, pval")
+  igraph::E(m)$label <- "G"; igraph::E(m)$log2FC <- 1; igraph::E(m)$pval <- 0.01
+  igraph::V(m)$label <- c("A", "B")
+  expect_error(gatom_plot_module(m, palette = "red"), "`palette` must be three")
+  expect_error(gatom_plot_module(m, label_size = 0), "`label_size` must be")
+  expect_error(gatom_plot_module(m, seed = "a"), "seed")
 })
