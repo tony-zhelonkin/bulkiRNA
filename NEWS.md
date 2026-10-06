@@ -2,6 +2,30 @@
 
 `1.3.0.9000` names the next release.
 
+## GATOM
+
+* New, experimental: `gatom_plot_module()` draws a module as a ggplot network
+  with ggraph: reactions are edges labelled with their gene, coloured by
+  log2 fold change on symmetric limits and widened by -log10 p; metabolites
+  are nodes, filled by their own log2 fold change when the module has
+  metabolite data. The layout and the label repel are seeded (default 42) and
+  leave the caller's random stream untouched. It carries its edge table, so
+  `gs_save()` writes PDF, PNG and TSV in one call. It draws all 18 KathleenM
+  modules, including the one `saveModuleToPdf()` could not.
+
+* Removed: `gatom_save_pdf()`, experimental in 1.2.0. gatom's
+  `saveModuleToPdf()` lays a module out with ggnet2, which can put every node
+  on one line and then fails to draw (4 of 18 KathleenM modules at seed 42).
+  Use `gatom_plot_module()` with `gs_save()`. `bulkirna_api()` still has 70
+  rows. `ggraph` joins Suggests.
+
+## Fixes
+
+* `gs_scale_fonts()`, and so `gs_save()`, no longer brings back elements a plot
+  blanks. It set a size on `axis.text` and `axis.title` of every plot, and an
+  `element_text()` added onto an `element_blank()` replaces it, so a
+  `theme_void()` network was saved with x and y axes.
+
 ## Documentation
 
 * `gatom_solve()` documents that virgo can return a different module among

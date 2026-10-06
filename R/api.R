@@ -101,8 +101,8 @@ bulkirna_api <- function(lifecycle = "all", quiet = FALSE) {
     gatom = c(
       "gatom_graph", "gatom_pathways", "gatom_score", "gatom_solve",
       "gatom_solver",
-      # The vignette's seeded PDF layout.
-      "gatom_save_pdf"
+      # The module's network figure, a seeded ggraph renderer.
+      "gatom_plot_module"
     ),
     # All dataset-level CoReSh APIs share the (gse, gpl) composite key.
     coresh = c(

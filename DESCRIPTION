@@ -39,6 +39,7 @@ Suggests:
     colorspace,
     edgeR,
     gatom,
+    ggraph,
     GSVA,
     homologene,
     igraph,

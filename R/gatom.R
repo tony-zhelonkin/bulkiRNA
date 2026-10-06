@@ -1097,63 +1097,133 @@ gatom_save_html <- function(m, path, name = "") {
   invisible(NULL)
 }
 
-#' Save a GATOM module as a PDF with a repelled layout
+#' Draw a GATOM module as a network
 #'
-#' Wraps `gatom::saveModuleToPdf()` with the vignette's call: `n_iter = 100`,
-#' `force = 1e-5`, after `set.seed(42)`. The label layout is a stochastic
-#' repel, so `seed` fixes it. The vignette's advice: the larger the module,
-#' the softer the `force`. The parent directory is created if missing.
+#' The module's figure: metabolites are nodes and enzyme-catalysed reactions
+#' are edges, labelled with the gene, coloured by its log2 fold change and
+#' widened by its -log10 p-value. With metabolite data (`met_de` in
+#' [gatom_graph()]), nodes are filled by their own log2 fold change on the same
+#' colour scale; without it they are grey, and the caption says so.
 #'
-#' gatom's layout can place every node on one line, and the drawing then
-#' fails. This is common in modules of a few nodes and depends on the seed.
-#' The function then stops, closes the devices gatom left open and removes
-#' the partial file, so a failed call leaves no state behind.
+#' The layout is Fruchterman-Reingold ([igraph::layout_with_fr()]) and the
+#' node labels are repelled, both random; `seed` fixes them and the caller's
+#' random stream is left as it was. The plot is a ggplot, so [gs_save()] writes
+#' it as PDF and PNG with its edge table beside it. This replaces gatom's own
+#' `saveModuleToPdf()`, whose layout can put every node on one line and then
+#' fails to draw. For an interactive view use [gatom_save_html()]; for
+#' Cytoscape or Gephi, `igraph::write_graph(m, path, format = "graphml")`
+#' keeps every node and edge attribute.
 #'
-#' @param m A module `igraph` from [gatom_module()].
-#' @param path Character(1) output `.pdf` path.
-#' @param name Character(1) title printed on the page.
-#' @param n_iter Integer(1) iterations of the label-repel layout.
-#' @param force Numeric(1) repel force.
-#' @param seed Integer(1) seed for the layout.
-#' @return `path`, invisibly.
+#' @param m A module `igraph` from [gatom_module()] or [gatom_solve()].
+#' @param seed Integer(1) seed for the layout and the label repel.
+#' @param palette Length-3 character vector of colours for negative, zero and
+#'   positive log2 fold change, on limits symmetric about zero from the
+#'   finite values; an infinite fold change takes the end colour. The mid
+#'   colour is grey rather than the house near-white, so an edge with no
+#'   change stays visible on a white page.
+#' @param label_size Numeric(1) text size of gene and metabolite labels, in mm.
+#' @return A ggplot object, carrying its edge table in the `gs_source`
+#'   attribute for [gs_save()].
 #' @examples
 #' \dontrun{
-#' gatom_save_pdf(m, "03_results/module.pdf", name = "M0.vs.M1")
+#' p <- gatom_plot_module(m)
+#' gs_save(p, "03_results/07_gatom/figures/module_k50", width = 10, height = 8)
 #' }
 #' @export
-gatom_save_pdf <- function(m, path, name = "", n_iter = 100, force = 1e-5,
-                           seed = 42) {
-  .require_pkg("gatom", "gatom_save_pdf()", 'BiocManager::install("gatom")')
-  .require_pkg("igraph", "gatom_save_pdf()")
-  if (!is.numeric(n_iter) || length(n_iter) != 1L || is.na(n_iter) ||
-        n_iter < 1) {
-    stop("`n_iter` must be a single positive number.", call. = FALSE)
-  }
-  if (!is.numeric(force) || length(force) != 1L || is.na(force) ||
-        force <= 0) {
-    stop("`force` must be a single positive number.", call. = FALSE)
+gatom_plot_module <- function(m, seed = 42,
+                              palette = c("#2166AC", "#BDBDBD", "#B35806"),
+                              label_size = 3) {
+  .require_pkg("igraph", "gatom_plot_module()")
+  .require_pkg("ggraph", "gatom_plot_module()")
+  if (!inherits(m, "igraph")) {
+    stop("`m` must be an igraph module from gatom_module(); got ",
+         class(m)[[1L]], ".", call. = FALSE)
   }
   .gatom_check_seed(seed)
-  .gatom_check_save(m, path, name)
-  # saveModuleToPdf() opens its devices before it can fail, and leaves them
-  # open when it does. Close whatever it opened and drop the partial file.
-  devices <- grDevices::dev.list()
-  on.exit({
-    for (d in setdiff(grDevices::dev.list(), devices)) grDevices::dev.off(d)
-  }, add = TRUE)
-  tryCatch(
-    .with_pinned_seed(seed, gatom::saveModuleToPdf(
-      m, file = path, name = name, n_iter = n_iter, force = force
-    )),
-    error = function(e) {
-      for (d in setdiff(grDevices::dev.list(), devices)) grDevices::dev.off(d)
-      unlink(path)
-      stop("gatom::saveModuleToPdf() could not draw `m`: ",
-           conditionMessage(e), ". Its label layout can put every node on ",
-           "one line, most often in small modules; another `seed`, `force` ",
-           "or `n_iter` may avoid it, or use gatom_save_html().",
-           call. = FALSE)
-    }
+  if (!is.character(palette) || length(palette) != 3L || anyNA(palette)) {
+    stop("`palette` must be three colours: negative, zero, positive.",
+         call. = FALSE)
+  }
+  if (!is.numeric(label_size) || length(label_size) != 1L ||
+        is.na(label_size) || label_size <= 0) {
+    stop("`label_size` must be a single positive number.", call. = FALSE)
+  }
+  if (igraph::ecount(m) == 0L) {
+    stop("`m` has no edges, so there is no reaction to draw.", call. = FALSE)
+  }
+  edges <- igraph::as_data_frame(m, "edges")
+  nodes <- igraph::as_data_frame(m, "vertices")
+  missing <- c(setdiff(c("label", "log2FC", "pval"), names(edges)),
+               setdiff("label", names(nodes)))
+  if (length(missing)) {
+    stop("`m` lacks the attributes gatom puts on a module: ",
+         paste(unique(missing), collapse = ", "), ".", call. = FALSE)
+  }
+
+  met_fc <- "log2FC" %in% names(nodes) && any(!is.na(nodes$log2FC))
+  # Limits come from the finite fold changes; an infinite one is squished onto
+  # the end colour instead of stretching the scale until the rest look grey.
+  fc <- c(edges$log2FC, if (met_fc) nodes$log2FC)
+  fc <- fc[is.finite(fc)]
+  lim <- if (length(fc)) max(abs(fc)) else 1
+  if (lim == 0) lim <- 1
+  # The layout and the label repel are the two random steps. The layout is
+  # computed here under the seed; ggrepel takes its own seed and restores the
+  # stream itself, so neither touches the caller's state.
+  xy <- .with_pinned_seed(seed, igraph::layout_with_fr(m))
+  title <- paste0(c(attr(m, "network"), if (!is.null(attr(m, "k_gene")))
+    paste("k_gene", attr(m, "k_gene"))), collapse = ", ")
+  caption <- sprintf(
+    "%d metabolites, %d reactions, %d genes; solver %s, weight %.3g%s.%s",
+    igraph::vcount(m), igraph::ecount(m), length(gatom_genes(m)),
+    attr(m, "solver") %||% "unknown",
+    attr(m, "solution_weight") %||% NA_real_,
+    if (isTRUE(attr(m, "solved_to_optimality"))) ", proven optimal" else "",
+    if (met_fc) "" else "\nNo metabolite data: nodes are not scored."
   )
-  invisible(path)
+
+  p <- ggraph::ggraph(m, layout = "manual", x = xy[, 1L], y = xy[, 2L]) +
+    ggraph::geom_edge_link(
+      aes(edge_colour = .data$log2FC, edge_width = -log10(.data$pval),
+          label = .data$label),
+      angle_calc = "along", label_dodge = grid::unit(2.5, "mm"),
+      label_size = label_size, label_colour = "grey20"
+    ) +
+    ggraph::scale_edge_colour_gradient2(
+      low = palette[[1L]], mid = palette[[2L]], high = palette[[3L]],
+      midpoint = 0, limits = c(-lim, lim), oob = scales::squish,
+      name = "log2FC",
+      # ggplot2 finds a guide named by string only where ggraph is attached.
+      guide = ggraph::guide_edge_colourbar()
+    ) +
+    ggraph::scale_edge_width(range = c(0.5, 3), name = "-log10 p")
+  p <- if (met_fc) {
+    p + ggraph::geom_node_point(aes(fill = .data$log2FC), shape = 21,
+                                size = 3.5, colour = "grey20") +
+      scale_fill_gradient2(low = palette[[1L]], mid = palette[[2L]],
+                           high = palette[[3L]], midpoint = 0,
+                           limits = c(-lim, lim), oob = scales::squish,
+                           name = "metabolite\nlog2FC")
+  } else {
+    p + ggraph::geom_node_point(size = 3, colour = "grey30")
+  }
+  p <- p +
+    ggraph::geom_node_text(aes(label = .data$label), size = label_size,
+                           repel = TRUE, seed = seed, max.overlaps = Inf,
+                           colour = "grey10") +
+    labs(title = if (nzchar(title)) title else NULL, caption = caption) +
+    theme_void() +
+    # theme_void() leaves the background transparent, which reads as black
+    # in some PNG viewers.
+    theme(legend.position = "right",
+          plot.background = element_rect(fill = "white", colour = "white"),
+          plot.caption = element_text(hjust = 0),
+          plot.margin = margin(10, 10, 10, 10))
+  source <- data.frame(
+    from = edges$from, to = edges$to, gene = edges$label,
+    log2FC = edges$log2FC, pval = edges$pval,
+    reaction = edges$reaction %||% NA_character_,
+    stringsAsFactors = FALSE
+  )
+  .gs_attach_source(p, source)
 }

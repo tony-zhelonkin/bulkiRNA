@@ -8,7 +8,7 @@
 .bulkirna_stochastic_registry <- function() {
   data.frame(
     name = c(
-      "coresh_match", "coresh_search", "gatom_module", "gatom_save_pdf",
+      "coresh_match", "coresh_search", "gatom_module", "gatom_plot_module",
       "gatom_score", "gatom_solve", "gs_coregulation", "gs_test",
       "gsdb_coresh"
     ),
@@ -23,7 +23,7 @@
       "GESECA multilevel permutations",
       "GESECA multilevel permutations",
       "BioNet BUM fit and the MWCS solver heuristic",
-      "the repelled label layout",
+      "the force-directed layout and the label repel",
       "BioNet BUM fit (random starts)",
       "the MWCS solver heuristic",
       "GESECA multilevel permutations",
@@ -34,7 +34,7 @@
       "upstream's reference implementation passes the literal value 1L",
       "upstream's reference implementation passes the literal value 1L",
       "the historical default is retained to preserve published results",
-      "the GATOM vignette's set.seed(42) before saveModuleToPdf()",
+      "the GATOM seed, 42, so a module and its figure share one default",
       "the GATOM vignette's set.seed(42), applied to the BUM fit as well",
       "the GATOM vignette's set.seed(42) before solve_mwcsp()",
       paste0(

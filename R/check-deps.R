@@ -15,7 +15,8 @@
     "babelgene",
     "biomaRt", "homologene",
     "GSVA",
-    "gatom", "mwcsr", "igraph",
+    # ggraph draws gatom_plot_module().
+    "gatom", "mwcsr", "igraph", "ggraph",
     # qs2 reads the CoReSh chunk tree; BiocParallel spreads the search over
     # chunk files. Both are reached only through `coresh_*()`.
     "qs2", "BiocParallel",
@@ -28,7 +29,7 @@
     rep("de", 2L),
     rep("annotation", 6L),
     "scoring",
-    rep("network", 3L),
+    rep("network", 4L),
     rep("coresh", 2L),
     "plots",
     rep("io", 2L)
@@ -38,7 +39,7 @@
     "Bioconductor", "Bioconductor", "Bioconductor", "CRAN",
     "Bioconductor", "CRAN",
     "Bioconductor",
-    "Bioconductor", "CRAN", "CRAN",
+    "Bioconductor", "CRAN", "CRAN", "CRAN",
     "CRAN", "Bioconductor",
     "CRAN",
     "CRAN", "CRAN"

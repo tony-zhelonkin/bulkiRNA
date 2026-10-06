@@ -42,7 +42,7 @@ return_audit_contract <- function() {
     return_audit_rows(
       c(
         "de_bfc_plot", "de_md_plot", "de_pca", "de_volcano",
-        "de_volcano_grid", "gs_plot_bar", "gs_plot_dot",
+        "de_volcano_grid", "gatom_plot_module", "gs_plot_bar", "gs_plot_dot",
         "gs_plot_heatmap", "gs_scale_fonts"
       ),
       "renderer", "ggplot"
@@ -53,7 +53,7 @@ return_audit_contract <- function() {
     return_audit_rows("gs_plot_running", "renderer", "patchwork"),
     return_audit_rows(
       c(
-        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gatom_save_pdf", "gs_save",
+        "ensure_dir", "gatom_download_refs", "gatom_save_html", "gs_save",
         "gs_write", "write_session_provenance"
       ),
       "writer", "character"
@@ -147,9 +147,9 @@ return_audit_probe_exceptions <- c(
     "Requires optional mwcsr; test-gatom.R asserts the mwcs_solver object",
     "and the errors that refuse the approximate virgo mode."
   ),
-  gatom_save_pdf = paste(
-    "Requires the optional GATOM plotting stack; test-gatom.R writes",
-    "gatom's example module and asserts the invisible path."
+  gatom_plot_module = paste(
+    "Requires optional igraph and ggraph; test-gatom.R draws gatom's",
+    "example module and asserts the ggplot and its source table."
   ),
   gatom_save_html = paste(
     "Requires optional GATOM plus a working pandoc executable; its focused",

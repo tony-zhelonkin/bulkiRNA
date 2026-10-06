@@ -16,7 +16,7 @@ test_that("all covers the optional union and excludes development packages", {
     "edgeR", "limma", "AnnotationDbi", "org.Hs.eg.db", "org.Mm.eg.db",
     "babelgene", "biomaRt", "homologene", "GSVA", "gatom", "mwcsr",
     # patchwork became a hard Import at 1.1.0, so it must NOT appear here.
-    "igraph", "qs2", "BiocParallel", "plotly", "readxl", "yaml"
+    "igraph", "ggraph", "qs2", "BiocParallel", "plotly", "readxl", "yaml"
   )
 
   expect_identical(all$package, expected)
@@ -116,7 +116,7 @@ test_that("network repositories match their standard sources", {
 
   expect_identical(
     deps$repository,
-    c("Bioconductor", "CRAN", "CRAN")
+    c("Bioconductor", "CRAN", "CRAN", "CRAN")
   )
   expect_match(deps$install[deps$package == "gatom"], "BiocManager")
   expect_match(deps$install[deps$package == "mwcsr"], "install.packages")
