@@ -203,30 +203,9 @@
     )
   }
 
-  # Two different pathways can format to the same display label -- the same set
-  # name in two collections, or two ids that differ only in a part
-  # `format_pathway_name()` drops. `label` becomes the y-axis factor, so equal
-  # labels collapse onto ONE row and the bars/points stack on top of each other:
-  # the figure silently shows n-1 of n results. Disambiguate the collisions only
-  # (with the machine id, the one thing guaranteed unique), before wrapping, so
-  # the appended text is wrapped too.
-  # Formatted selectively, not unconditionally. format_pathway_name() is built
-  # for ALL_CAPS_SNAKE ids and is not idempotent on prose: it turns "." into a
-  # space and title-cases every word, so a real display name arrives mangled --
-  # "GSE174808 · 40.1% var" came out as "Gse174808 · 40 1% Var". A provider that
-  # supplied pathway_names, or a caller who passed real labels, has already
-  # decided how they read. Only names still equal to their machine id are
-  # formatted. gs_plot_running() has done this since 1.0.0; the bar, dot and
-  # heatmap renderers had not.
-  lbl <- as.character(df$pathway_name)
-  raw <- .gs_placeholder_name(lbl) | lbl == df$pathway_id
-  lbl[raw] <- format_pathway_name(df$pathway_id[raw],
-                                  strip_prefix = strip_prefix)
-  dup <- lbl %in% lbl[duplicated(lbl)]
-  if (any(dup)) {
-    lbl[dup] <- paste0(lbl[dup], " (", df$pathway_id[dup], ")")
-  }
-  df$label <- .gs_wrap_label(lbl, width = wrap_width)
+  df$label <- .gs_display_labels(df$pathway_id, df$pathway_name,
+                                 wrap_width = wrap_width,
+                                 strip_prefix = strip_prefix)
 
   # Carry through any column the result has that the plotting contract does not
   # use. Nothing here plots them: they ride along so that `gs_save()`'s
@@ -258,6 +237,101 @@
     !is.na(df$padj) & df$padj < highlight
   }
   df
+}
+
+#' Display labels for pathways, one per pathway id
+#'
+#' The single place a renderer turns ids and names into axis labels. Labels are
+#' derived at the grain of the *pathway*, not of the row: a long frame carries
+#' one row per pathway per contrast (or database, or sample), and those rows are
+#' the same pathway, so they must share one label. Up to 1.3.0 the collision
+#' check ran over rows, so every pathway of a multi-contrast frame looked like a
+#' collision and had its id appended -- on every `compare =` dotplot and every
+#' multi-contrast heatmap.
+#'
+#' Two *different* pathways can still format to the same label -- the same set
+#' name in two collections, or two ids that differ only in a part
+#' [format_pathway_name()] drops. `label` is the y-axis factor, so equal labels
+#' would collapse onto one row and the marks would stack: the figure silently
+#' shows n-1 of n results. Only those collisions get the machine id appended,
+#' before wrapping, so the appended text is wrapped too.
+#'
+#' Names are formatted selectively, not unconditionally.
+#' [format_pathway_name()] is built for ALL_CAPS_SNAKE ids and is not idempotent
+#' on prose: "GSE174808 · 40.1% var" came out as "Gse174808 · 40 1% Var". Only
+#' names that are missing or still equal to their id are formatted; a provider
+#' or caller who supplied real names has already decided how they read.
+#'
+#' @param ids Character vector of pathway ids, one per row; may repeat.
+#' @param names Character vector of pathway names, parallel to `ids`. Where one
+#'   id carries several names, the first is used.
+#' @param wrap_width Soft character width for wrapping.
+#' @param strip_prefix Logical, passed to [format_pathway_name()].
+#' @return Character vector parallel to `ids`: equal ids get equal labels and
+#'   different ids get different labels.
+#' @keywords internal
+.gs_display_labels <- function(ids, names, wrap_width = 50,
+                               strip_prefix = TRUE) {
+  ids <- as.character(ids)
+  names <- as.character(names)
+  first <- !duplicated(ids)
+  id <- ids[first]
+  lbl <- names[first]
+  raw <- .gs_placeholder_name(lbl) | lbl == id
+  lbl[raw] <- format_pathway_name(id[raw], strip_prefix = strip_prefix)
+  shared <- lbl %in% lbl[duplicated(lbl)]
+  lbl[shared] <- paste0(lbl[shared], " (", id[shared], ")")
+  unname(.gs_wrap_label(lbl, width = wrap_width))[match(ids, id)]
+}
+
+#' Refuse a frame the figure cannot show faithfully
+#'
+#' A renderer places each row at (label, panel). Two failures share one cause --
+#' a dimension of the data that the figure does not encode:
+#'
+#' * **A varying contrast with nothing to separate it.** A dot for contrast A
+#'   and one for contrast B on the same pathway row are indistinguishable, and
+#'   `geom_col()` *stacks* them, so the bar shows the sum of two NES values.
+#' * **Two rows at the same position.** The same pathway id from two databases,
+#'   for instance, lands twice on one row of one panel.
+#'
+#' Both used to render without a warning. They now stop and say which
+#' argument encodes the missing dimension.
+#'
+#' @param df A plotting frame, after its facet columns are added.
+#' @param position Columns that together locate one mark.
+#' @param encoded Identity columns the figure shows (an axis or a facet).
+#' @param fix Named character vector: for each identity column, how to encode
+#'   it in this renderer.
+#' @return `df`, invisibly.
+#' @keywords internal
+.gs_check_marks <- function(df, position, encoded, fix) {
+  key <- function(cols) {
+    do.call(paste, c(lapply(df[cols], as.character), sep = "\r"))
+  }
+  for (dim in setdiff(intersect("contrast", names(df)), encoded)) {
+    vals <- unique(df[[dim]])
+    if (length(vals) > 1L) {
+      stop("`x` holds ", length(vals), " ", dim, "s (",
+           paste(utils::head(vals, 3L), collapse = ", "),
+           if (length(vals) > 3L) ", ..." else "",
+           ") but nothing in the figure separates them, so their marks would ",
+           "share one row per pathway. ", fix[[dim]], call. = FALSE)
+    }
+  }
+  pos <- key(intersect(position, names(df)))
+  if (anyDuplicated(pos)) {
+    hit <- df[pos == pos[duplicated(pos)][1L], , drop = FALSE]
+    dim <- Filter(function(nm) length(unique(hit[[nm]])) > 1L,
+                  intersect(c("database", "contrast"), names(hit)))
+    stop("Pathway ", dQuote(hit$pathway_id[1L]), " of `x` would be drawn ",
+         nrow(hit), " times at the same position",
+         if (length(dim)) paste0(", once per ", dim[1L]) else "", ". ",
+         if (length(dim)) fix[[dim[1L]]] else
+           "Each pathway may appear once per panel.",
+         call. = FALSE)
+  }
+  invisible(df)
 }
 
 #' Select the top rows of a plotting frame
@@ -302,6 +376,28 @@
   keep <- unlist(lapply(split(seq_len(nrow(df)), grp), utils::head, top_n),
                  use.names = FALSE)
   df[sort(keep), , drop = FALSE]
+}
+
+#' The first `top_n` distinct pathways of a sorted frame
+#'
+#' Selection for renderers that draw each pathway once per panel. `top_n`
+#' counts pathways, so the rows a pathway has in other contrasts do not use up
+#' the budget.
+#'
+#' @param df A plotting frame, already sorted by [.gs_select_top()].
+#' @param top_n Integer, or `NULL`/`Inf` for all.
+#' @param group_by A column of `df` within which `top_n` applies, or `NULL`.
+#' @return Character vector of `pathway_id`s, in rank order.
+#' @keywords internal
+.gs_top_ids <- function(df, top_n = NULL, group_by = NULL) {
+  pick <- function(ids) {
+    ids <- unique(ids)
+    if (is.null(top_n) || !is.finite(top_n)) ids
+    else utils::head(ids, as.integer(top_n))
+  }
+  if (is.null(group_by)) return(pick(df$pathway_id))
+  unique(unlist(lapply(split(df$pathway_id, df[[group_by]]), pick),
+                use.names = FALSE))
 }
 
 #' Order pathway labels for a categorical axis

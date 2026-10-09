@@ -78,10 +78,7 @@ gs_plot_heatmap.gs_result <- function(x,
     database_labels = database_labels
   )
   if (nrow(sel) == 0L) return(.gs_empty_plot(title))
-  ids <- unique(sel$pathway_id)
-  if (!is.null(top_n) && is.finite(top_n)) {
-    ids <- utils::head(ids, as.integer(top_n))
-  }
+  ids <- .gs_top_ids(sel, top_n)
 
   df <- .gs_plot_frame(
     x, keep_ids = ids, sort_by = sort_by,
@@ -97,6 +94,15 @@ gs_plot_heatmap.gs_result <- function(x,
     # supplied a real contrast name keeps it.
     df$column[is.na(df$column) | df$column == "contrast"] <- ""
   }
+  .gs_check_marks(
+    df, position = c("label", "column"), encoded = by,
+    fix = c(
+      contrast = paste("Use `by = \"contrast\"`, or keep one contrast with",
+                       "gs_filter()."),
+      database = paste("Use `by = \"database\"`, or keep one database with",
+                       "gs_filter().")
+    )
+  )
   if (is.null(limits)) limits <- .gs_symmetric_limits(df$stat)
   df <- .gs_order_labels(df, by = "stat", decreasing = TRUE)
 
@@ -167,13 +173,12 @@ gs_plot_heatmap.gs_matrix <- function(x,
   names_map <- gs_pathway_names(x)
   ids <- rownames(m)
   pretty <- if (is.null(names_map)) ids else unname(names_map[ids])
-  pretty[is.na(pretty)] <- ids[is.na(pretty)]
 
   df <- data.frame(
     pathway_id = rep(ids, times = ncol(m)),
     label = rep(
-      .gs_wrap_label(format_pathway_name(pretty, strip_prefix = strip_prefix),
-                     width = wrap_width),
+      .gs_display_labels(ids, pretty, wrap_width = wrap_width,
+                         strip_prefix = strip_prefix),
       times = ncol(m)
     ),
     sample = rep(colnames(m), each = nrow(m)),

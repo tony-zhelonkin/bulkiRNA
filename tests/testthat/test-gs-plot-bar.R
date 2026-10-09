@@ -82,3 +82,15 @@ test_that("an all-filtered-out selection yields a zero-row, not dataless, plot",
   expect_equal(nrow(p$data), 0L)
   expect_false(is.null(nrow(p$data)))
 })
+
+# --- regression: geom_col() stacked the contrasts ------------------------------
+# A pathway present in two contrasts shared one bar, so the bar's length was the
+# SUM of the two statistics.
+test_that("several contrasts in one bar panel is an error, not a stacked bar", {
+  res <- fake_plot_result(n = 3L, contrasts = c("A-B", "C-D"))
+  expect_error(gs_plot_bar(res, top_n = 6), "facet = \"contrast\"",
+               fixed = TRUE)
+  p <- gs_plot_bar(res, top_n = 3, facet = "contrast")
+  d <- layer_data_for(p)
+  expect_equal(sort(abs(d$ymax - d$ymin)), sort(abs(attr(p, "gs_source")$stat)))
+})
