@@ -77,3 +77,30 @@ test_that("the contrast axis blanks gs_test()'s placeholder but keeps real names
   p2 <- gs_plot_heatmap(r2)
   expect_true(all(as.character(p2$data$column) == "KO-WT"))
 })
+
+# --- regression: every multi-contrast heatmap label carried its id -------------
+test_that("a multi-contrast heatmap labels each pathway once, without its id", {
+  res <- fake_plot_result(n = 3L, contrasts = c("A-B", "C-D"))
+  src <- attr(gs_plot_heatmap(res, top_n = 3), "gs_source")
+  expect_false(any(grepl("HALLMARK_SET_", src$label)))
+  expect_equal(nrow(unique(src[c("pathway_id", "label")])), 3L)
+})
+
+test_that("by = 'database' refuses to overlay several contrasts in one tile", {
+  res <- fake_plot_result(n = 3L, contrasts = c("A-B", "C-D"))
+  expect_error(gs_plot_heatmap(res, by = "database"), "by = \"contrast\"",
+               fixed = TRUE)
+})
+
+# The gs_matrix path had its own copy of the label logic: no collision guard,
+# and prose names formatted as if they were ids.
+test_that("a gs_matrix heatmap shares the gs_result label rules", {
+  m <- fake_plot_matrix(n_path = 3L)
+  attr(m, "pathway_names") <- stats::setNames(
+    c("Same name", "Same name", "GSE1 · 40.1% var"), rownames(m)
+  )
+  src <- attr(gs_plot_heatmap(m), "gs_source")
+  lab <- unique(as.character(src$label))
+  expect_length(lab, 3L)
+  expect_true("GSE1 · 40.1% var" %in% lab)
+})

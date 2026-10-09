@@ -79,6 +79,15 @@ gs_plot_bar <- function(x,
   if (is.null(limits)) limits <- .gs_symmetric_limits(df$stat)
   df <- .gs_order_labels(df, by = "stat", decreasing = TRUE)
   df <- .gs_facet_columns(df, facet, NULL)
+  .gs_check_marks(
+    df, position = c("label", ".facet_row"), encoded = facet,
+    fix = c(
+      contrast = paste("Use `facet = \"contrast\"`, or keep one contrast",
+                       "with gs_filter()."),
+      database = paste("Use `facet = \"database\"`, or keep one database",
+                       "with gs_filter().")
+    )
+  )
   df$outline <- ifelse(df$significant, "black", "transparent")
 
   p <- ggplot(df, aes(x = .data$label, y = .data$stat)) +

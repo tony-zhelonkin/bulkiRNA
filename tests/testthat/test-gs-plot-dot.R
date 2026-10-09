@@ -166,3 +166,73 @@ test_that("a pathway with padj == 0 is still drawn, at the largest size", {
   expect_equal(src$pathway_id[which.max(src$neg_log_padj)],
                r$pathway_id[which(r$padj == 0)])
 })
+
+# --- regression: labels are derived per pathway, not per row -------------------
+# Up to 1.3.0 the collision check ran over the rows of the long frame, so the
+# per-contrast rows of ONE pathway looked like two pathways sharing a name and
+# every label of every `compare =` dotplot carried its machine id. Confirmed
+# before the fix: 4 pathways x 2 contrasts gave "Set 1 (HALLMARK_SET_1)", ...
+test_that("compare = 'contrast' leaves unique labels alone", {
+  res <- fake_plot_result(n = 4L, contrasts = c("A-B", "C-D"))
+  src <- attr(gs_plot_dot(res, top_n = 4, compare = "contrast"), "gs_source")
+  lab <- unique(as.character(src$label))
+  expect_length(lab, 4L)
+  expect_false(any(grepl("HALLMARK_SET_", lab)))
+})
+
+test_that("compare mode still separates two pathways that share a name", {
+  res <- fake_plot_result(n = 3L, contrasts = c("A-B", "C-D"))
+  res$pathway_name[res$pathway_id %in% c("HALLMARK_SET_1", "HALLMARK_SET_2")] <-
+    "Same name"
+  src <- attr(gs_plot_dot(res, top_n = 3, compare = "contrast"), "gs_source")
+  lab <- tapply(as.character(src$label), src$pathway_id, unique)
+  # one label per pathway, a different label for each pathway ...
+  expect_true(all(lengths(lab) == 1L))
+  expect_length(unique(unlist(lab)), 3L)
+  # ... and the id is appended only to the two that collide.
+  expect_match(lab[["HALLMARK_SET_1"]], "HALLMARK_SET_1", fixed = TRUE)
+  expect_false(grepl("HALLMARK_SET_3", lab[["HALLMARK_SET_3"]], fixed = TRUE))
+})
+
+# --- regression: a dimension the figure does not show --------------------------
+# Two contrasts with no compare/facet drew both dots on one row with nothing
+# telling them apart. Confirmed before the fix: 8 points on 4 y positions.
+test_that("several contrasts without compare or facet is an error", {
+  res <- fake_plot_result(n = 4L, contrasts = c("A-B", "C-D"))
+  expect_error(gs_plot_dot(res, top_n = 8), "compare = \"contrast\"",
+               fixed = TRUE)
+  expect_error(gs_plot_dot(res, top_n = 8, facet = "direction"),
+               "2 contrasts")
+  expect_s3_class(gs_plot_dot(res, top_n = 4, facet = "contrast"), "ggplot")
+})
+
+test_that("one pathway id from two databases cannot share a row", {
+  res <- fake_plot_result(n = 2L, databases = c("msigdb_H", "mitopathways"))
+  expect_error(gs_plot_dot(res, top_n = 4), "once per database")
+  expect_s3_class(gs_plot_dot(res, top_n = 4, compare = "database"), "ggplot")
+})
+
+# --- regression: large dots were cut at the panel edge -------------------------
+test_that("dots are not clipped and compare panels are spaced by dot size", {
+  res <- fake_plot_result(n = 4L, contrasts = c("A-B", "C-D"))
+  p <- gs_plot_dot(res, top_n = 4, compare = "contrast",
+                   size_range = c(2, 12))
+  expect_identical(p$coordinates$clip, "off")
+  expect_equal(as.numeric(p$theme$panel.spacing.x), 0.75 * 12 + 2)
+  expect_identical(grid::unitType(p$theme$panel.spacing.x), "mm")
+  expect_identical(gs_plot_dot(fake_plot_result())$coordinates$clip, "off")
+})
+
+# --- regression: compare mode counted rows, not pathways -----------------------
+# top_n was applied to the long frame, so with two contrasts tied on padj
+# `top_n = 4` showed 2 pathways. Confirmed before the fix.
+test_that("compare = 'contrast' shows top_n pathways, not top_n rows", {
+  res <- fake_plot_result(n = 6L, contrasts = c("A-B", "C-D", "E-F"))
+  src <- attr(gs_plot_dot(res, top_n = 4, compare = "contrast"), "gs_source")
+  expect_equal(length(unique(src$pathway_id)), 4L)
+  expect_equal(nrow(src), 4L * 3L)
+  src <- attr(gs_plot_dot(res, top_n = 2, compare = "contrast",
+                          facet = "direction"), "gs_source")
+  expect_true(all(tapply(src$pathway_id, src$.facet_row,
+                         function(v) length(unique(v))) == 2L))
+})

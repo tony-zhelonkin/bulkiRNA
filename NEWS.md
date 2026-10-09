@@ -1,3 +1,34 @@
+# bulkiRNA 1.3.1
+
+## Fixes: pathway renderers draw one mark per pathway per panel
+
+Every item below broke the same expectation: each pathway gets one axis row,
+and each panel shows it once. The code tracked the data by row instead, one row
+per pathway per contrast.
+
+* `gs_plot_dot(compare = )` and `gs_plot_heatmap()` no longer append the
+  pathway id to every label. The duplicate-name check counted a pathway's rows
+  in other contrasts as a second pathway with the same name, so any
+  multi-contrast figure got `(KEGG_MEDICUS_...)`-style suffixes. The suffixes
+  wrapped into extra lines and squeezed the panels. Labels are now built once
+  per `pathway_id`, and the id is added only when two *different* pathways
+  share a name. Present since 0.3.0.
+* `gs_plot_dot(compare = )` now shows `top_n` pathways. It used to take the
+  top `top_n` rows across all panels, so a four-way comparison could show a
+  quarter of the requested pathways.
+* `gs_plot_heatmap()` on a `gs_matrix` uses the same label rules as a
+  `gs_result`. It had its own copy that formatted prose names as if they were
+  ids and stacked two sets with the same name onto one row.
+* Renderers now refuse data they cannot show faithfully. With several
+  contrasts and nothing to separate them, `gs_plot_dot()` drew indistinguishable
+  dots on one row, and `gs_plot_bar()` stacked the bars, so a bar showed the
+  **sum** of the NES values. Both now stop and name the argument that fixes it
+  (`compare =`, `facet =`, `by =`, or `gs_filter()`). The same applies to one
+  `pathway_id` from two databases on one axis.
+* Large dots are no longer cut at a panel edge. Dotplots draw without clipping,
+  and `compare =` panels are spaced by the largest dot's diameter in mm, so the
+  spacing holds whatever the figure size.
+
 # bulkiRNA 1.3.0
 
 ## GATOM

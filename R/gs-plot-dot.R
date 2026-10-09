@@ -86,14 +86,17 @@ gs_plot_dot <- function(x,
 
   group_by <- if (facet == "none") NULL else facet
 
+  # With `compare`, `top_n` counts pathways, not rows: each pathway has one row
+  # per panel, so a row count would show top_n / n_panels pathways or fewer.
   df <- .gs_plot_frame(
-    x, top_n = top_n, sort_by = sort_by, direction = direction,
-    group_by = group_by, highlight = highlight, wrap_width = wrap_width,
-    strip_prefix = strip_prefix, database_labels = database_labels
+    x, top_n = if (is.null(compare)) top_n else NULL, sort_by = sort_by,
+    direction = direction, group_by = group_by, highlight = highlight,
+    wrap_width = wrap_width, strip_prefix = strip_prefix,
+    database_labels = database_labels
   )
   if (!is.null(compare) && nrow(df) > 0L) {
     df <- .gs_plot_frame(
-      x, keep_ids = unique(df$pathway_id), sort_by = sort_by,
+      x, keep_ids = .gs_top_ids(df, top_n, group_by), sort_by = sort_by,
       direction = direction, highlight = highlight, wrap_width = wrap_width,
       strip_prefix = strip_prefix, database_labels = database_labels
     )
@@ -111,6 +114,16 @@ gs_plot_dot <- function(x,
 
   df <- .gs_order_labels(df, by = aes_x, decreasing = TRUE)
   df <- .gs_facet_columns(df, facet, compare)
+  .gs_check_marks(
+    df, position = c("label", ".facet_row", ".facet_col"),
+    encoded = c(facet, compare),
+    fix = c(
+      contrast = paste("Use `compare = \"contrast\"` or `facet = \"contrast\"`,",
+                       "or keep one contrast with gs_filter()."),
+      database = paste("Use `compare = \"database\"` or `facet = \"database\"`,",
+                       "or keep one database with gs_filter().")
+    )
+  )
 
   p <- ggplot(df, aes(x = .data[[aes_x]], y = .data$label)) +
     geom_point(
@@ -149,7 +162,36 @@ gs_plot_dot <- function(x,
     theme(legend.position = "right")
 
   p <- .gs_add_facets(p, facet, compare)
+  p <- .gs_dot_room(p, size_range, has_row = facet != "none",
+                    has_col = !is.null(compare))
   .gs_attach_source(p, df)
+}
+
+#' Keep the largest dot whole
+#'
+#' A dot's centre sits only the scale's 5% expansion inside its panel, and that
+#' margin is in data units: it shrinks with the panel. A shape-21 point of size
+#' `s` is about `0.75 * s` mm across, plus its outline, so at the default
+#' `size_range` the top dot is ~9 mm wide and is cut at the panel edge once a
+#' panel is narrower than ~95 mm -- routine for a four-way `compare =` grid.
+#' Padding the scale cannot fix this, because the dot is sized in mm and the
+#' panel width is unknown until the figure is drawn. So the panel stops
+#' clipping, and faceted panels are spaced by the largest dot's diameter, which
+#' is in mm too: an edge dot spills into the gap instead of being cut or
+#' touching its neighbour.
+#'
+#' @param p A dotplot.
+#' @param size_range The dotplot's `size_range`.
+#' @param has_row,has_col Whether row / column facets are present.
+#' @return `p`, with clipping off and panel spacing set.
+#' @keywords internal
+.gs_dot_room <- function(p, size_range, has_row = FALSE, has_col = FALSE) {
+  gap_mm <- 0.75 * max(size_range) + 2
+  p <- p + coord_cartesian(clip = "off")
+  if (has_col) p <- p + theme(panel.spacing.x = unit(gap_mm, "mm"))
+  # Never tighter than the ~1-line row gap .gs_add_facets() gives other renderers.
+  if (has_row) p <- p + theme(panel.spacing.y = unit(max(gap_mm, 5), "mm"))
+  p
 }
 
 #' Validate the `compare` argument
