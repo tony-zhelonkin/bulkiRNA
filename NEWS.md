@@ -1,4 +1,4 @@
-# bulkiRNA (development version)
+# bulkiRNA 1.3.1
 
 ## Fixes: pathway renderers draw one mark per pathway per panel
 
